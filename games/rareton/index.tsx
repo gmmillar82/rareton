@@ -5,15 +5,17 @@ import type { GameComponentProps } from "@rarefriends/friendsdk/runtime";
 import { GameMenu } from "@rarefriends/friendsdk/frame";
 import { createFriendReader, decodeGenerationSprites, spriteFrame, type GenerationSprites, type SpriteFacing } from "@rarefriends/friendsdk/sprites";
 import { createFriendSoundKit, type FriendSoundCue, type FriendSoundKit } from "@rarefriends/friendsdk/sounds";
+import { RF, maximumPrize, type ChanceGameDefinition, type GameSnapshot } from "@rarefriends/friendsdk/game";
+import { formatGameAmount } from "@rarefriends/friendsdk/ui";
 import "@rarefriends/friendsdk/frame.css";
 import "./style.css";
 import {
-  BUILDINGS, BOARD, CHIMNEYS, INK, MAILBOX, SPAWN, WELL, WORLD, advance, clamp, createFlowerSpots, distance,
+  BUILDINGS, BOARD, CHIMNEYS, INK, MAILBOX, PLOT, PLOT_SLOTS, SPAWN, STALL, WELL, WORLD, advance, clamp, createFlowerSpots, distance,
   paintFlower, paintGround, paintScenery, walkable, type Box, type FlowerSpot, type Point, type Scenery,
 } from "./world";
 import {
-  EMPTY_INVENTORY, FLOWERS, FLOWER_IDS, MESSAGES, giftArt, makeGift, shortCode,
-  type FlowerId, type Gift, type GiftKind, type Inventory,
+  EMPTY_INVENTORY, FLOWERS, FLOWER_IDS, GARDEN_IDS, MEADOW_IDS, MESSAGES, giftArt, isGarden, makeGift, outcomeOf, shortCode,
+  type FlowerId, type GardenFlower, type Gift, type GiftKind, type Inventory,
 } from "./gifts";
 import { VILLAGERS } from "./villagers";
 import { VILLAGER_ART } from "./villager-art";
@@ -26,11 +28,18 @@ VILLAGERS.forEach((villager, index) => {
   if (art) VILLAGER_SPRITES[index] = decodeGenerationSprites(villager.tokenId, art.familyId, art.seed, art.frames);
 });
 const SPEED = 230, NPC_SPEED = 42, REGROW_MS = 25_000, MAX_BUNS = 3;
+/** Simulated postage: every gift needs a stamp; half its price is burned, half goes to the village post fund. */
+const STAMP = RF / 10n;
+const rf = (value: bigint) => `${formatGameAmount(value, 18)} RF`;
+const valueOf = (definition: ChanceGameDefinition, flower: GardenFlower) => definition.outcomes[outcomeOf(flower) - 1].reward;
+const chanceOf = (definition: ChanceGameDefinition, flower: GardenFlower) => definition.outcomes[outcomeOf(flower) - 1].chanceBps / 100;
+const wait = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms));
 const MOVE_KEYS = new Set(["w", "a", "s", "d", "arrowup", "arrowleft", "arrowdown", "arrowright"]);
 
 type Target = { id: string; x: number; y: number; reach: number; label: string; lift: number; hit?: Box };
 type Menu =
-  | { kind: "post" | "mailbox" | "satchel" | "settings" | "board" }
+  | { kind: "post" | "mailbox" | "satchel" | "settings" | "board" | "stall" }
+  | { kind: "garden"; bloom?: GardenFlower }
   | { kind: "bakery"; gave: boolean }
   | { kind: "well"; note?: string }
   | { kind: "chat"; npc: number; line: number; note?: string }
@@ -46,6 +55,8 @@ const FIXED_TARGETS: Target[] = [
   { id: "bakery", x: 380, y: 556, reach: 70, label: "Visit the bakery", lift: 110, hit: doorArea(BUILDINGS.bakery) },
   { id: "mailbox", x: MAILBOX.x, y: MAILBOX.y + 20, reach: 60, label: "Check your mailbox", lift: 105, hit: { x: MAILBOX.x - 30, y: MAILBOX.y - 75, width: 60, height: 95 } },
   { id: "board", x: BOARD.x, y: BOARD.y + 22, reach: 70, label: "Read the notice board", lift: 125, hit: { x: BOARD.x - 50, y: BOARD.y - 95, width: 100, height: 120 } },
+  { id: "stall", x: STALL.x, y: STALL.y + 30, reach: 75, label: "Visit the seed stall", lift: 130, hit: { x: STALL.x - 70, y: STALL.y - 120, width: 140, height: 125 } },
+  { id: "garden", x: PLOT.x + PLOT.width / 2, y: PLOT.y + PLOT.height + 22, reach: 95, label: "Plant a seed in the garden", lift: 100, hit: { x: PLOT.x - 10, y: PLOT.y - 30, width: PLOT.width + 20, height: PLOT.height + 40 } },
   { id: "well", x: WELL.x, y: WELL.y + 26, reach: 80, label: "Make a wish at the well", lift: 160, hit: { x: WELL.x - 60, y: WELL.y - 130, width: 120, height: 160 } },
 ];
 const inside = (p: Point, b: Box) => p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height;
@@ -68,17 +79,17 @@ function tag(ctx: CanvasRenderingContext2D, text: string, x: number, y: number) 
 }
 
 /** Crisp one-bit pixel art for menus, optionally with the canonical white halo. */
-function PixelArt({ rows, scale = 6, halo = false, label }: { rows: readonly string[]; scale?: number; halo?: boolean; label: string }) {
+function PixelArt({ rows, scale = 6, halo = false, color, label }: { rows: readonly string[]; scale?: number; halo?: boolean; color?: string; label: string }) {
   const width = rows[0]?.length ?? 16, height = rows.length;
   let ink = "", glow = "";
   rows.forEach((row, y) => [...row].forEach((pixel, x) => {
     if (pixel !== "#") return;
     ink += `M${x} ${y}h1v1h-1z`;
-    if (halo) glow += `M${x - 1} ${y - 1}h3v3h-3z`;
+    if (halo || color) glow += `M${x - 1} ${y - 1}h3v3h-3z`;
   }));
   return <svg className="rt-pixels" role="img" aria-label={label} viewBox={`-1 -1 ${width + 2} ${height + 2}`}
     width={(width + 2) * scale} height={(height + 2) * scale} shapeRendering="crispEdges">
-    {halo && <path d={glow} fill="#fff" />}<path d={ink} fill="#1d1b17" />
+    {(halo || color) && <path d={glow} fill={color ? "#1d1b17" : "#fff"} />}<path d={ink} fill={color ?? "#1d1b17"} />
   </svg>;
 }
 
@@ -94,13 +105,14 @@ function GiftCard({ gift }: { gift: Gift }) {
     <div>
       <strong>{gift.title}</strong>
       <small>From Friend #{gift.from.toString()} to Friend #{gift.to.toString()}{gift.toFamily ? ` (${gift.toFamily})` : ""}</small>
-      <small>Gift code <code>{shortCode(gift.code)}</code> · <span className="rt-sim">Simulated</span></small>
+      {gift.carries ? <small>Carries {rf(gift.carries)} of garden flowers</small> : null}
+      <small>Gift code <code>{shortCode(gift.code)}</code>{gift.stamp ? ` · ${rf(gift.stamp)} stamp` : ""} · <span className="rt-sim">Simulated</span></small>
     </div>
   </div>;
 }
 
-function PostOffice({ friendId, inventory, paused, onSend, onDone }: {
-  friendId: bigint; inventory: Inventory; paused: boolean;
+function PostOffice({ friendId, inventory, paused, balance, definition, onSend, onDone }: {
+  friendId: bigint; inventory: Inventory; paused: boolean; balance: bigint; definition: ChanceGameDefinition;
   onSend: (gift: Gift, spend: Partial<Record<FlowerId | "bun", number>>) => void; onDone: () => void;
 }) {
   const [kind, setKind] = useState<GiftKind>("bouquet"), [picks, setPicks] = useState<FlowerId[]>([]), [message, setMessage] = useState(0);
@@ -109,6 +121,8 @@ function PostOffice({ friendId, inventory, paused, onSend, onDone }: {
   const request = useRef(0);
   const left = (flower: FlowerId) => inventory[flower] - picks.filter(pick => pick === flower).length;
   const ready = kind === "bouquet" ? picks.length > 0 : kind === "bun" ? inventory.bun > 0 : true;
+  const canStamp = balance >= STAMP;
+  const carries = kind === "bouquet" ? picks.reduce((total, pick) => total + (isGarden(pick) ? valueOf(definition, pick) : 0n), 0n) : 0n;
 
   // Look the Friend up shortly after typing stops; Find (or Enter) looks up immediately.
   useEffect(() => {
@@ -137,11 +151,12 @@ function PostOffice({ friendId, inventory, paused, onSend, onDone }: {
   const blocker = !ready ? (kind === "bouquet"
       ? hasFlowers ? "Tap a flower on the left to add it to the bouquet." : "No flowers yet. Pick some in the meadow, or send a letter instead."
       : "You need a honey bun from Bramble's bakery first.")
-    : looking ? "Finding that Friend…" : !recipient ? "Type the number of the Friend you're sending to." : "Ready to send!";
+    : looking ? "Finding that Friend…" : !recipient ? "Type the number of the Friend you're sending to."
+    : !canStamp ? `Not enough RF for a ${rf(STAMP)} stamp. Sell a garden flower at the seed stall.` : "Ready to send!";
 
   function send() {
-    if (!recipient || !ready || paused) return;
-    const gift = makeGift(kind, picks, message, friendId, recipient.tokenId, { toFamily: recipient.familyName });
+    if (!recipient || !ready || !canStamp || paused) return;
+    const gift = makeGift(kind, picks, message, friendId, recipient.tokenId, { toFamily: recipient.familyName, carries: carries || undefined, stamp: STAMP });
     const spend: Partial<Record<FlowerId | "bun", number>> = {};
     if (kind === "bouquet") for (const pick of picks) spend[pick] = (spend[pick] ?? 0) + 1;
     if (kind === "bun") spend.bun = 1;
@@ -155,12 +170,15 @@ function PostOffice({ friendId, inventory, paused, onSend, onDone }: {
         <h3>On its way! <span className="rt-sim">Simulated</span></h3>
         <p>{sentGift.title}</p>
         <p>From Friend #{friendId.toString()} to Friend #{sentGift.to.toString()} ({sentGift.toFamily})</p>
+        {sentGift.carries ? <p>Carries {rf(sentGift.carries)} of garden flowers</p> : null}
+        <p>Postage {rf(STAMP)} ({rf(STAMP / 2n)} burned, {rf(STAMP / 2n)} to the village post fund)</p>
         <p>Gift code <code>{shortCode(sentGift.code)}</code></p>
       </div>
     </div>
     <p className="rt-banner"><strong>Practice post:</strong> nothing was minted and nothing left your wallet. There was no transaction,
-      no signature and no fee. In a future version, this step could mint the 16 × 16 gift on Robinhood Chain and deliver
-      it to Friend #{sentGift.to.toString()}'s wallet.</p>
+      no signature and no real fee. The stamp and any garden flowers came out of your simulated balance. In a future version,
+      this step could burn the stamp in RF, mint the 16 × 16 gift on Robinhood Chain and deliver it, with any RF-backed flowers,
+      to Friend #{sentGift.to.toString()}'s wallet.</p>
     <div className="rt-row">
       <button type="button" disabled={paused} onClick={() => setSentGift(null)}>Send another</button>
       <button type="button" className="rt-primary" disabled={paused} onClick={onDone}>Back to the village</button>
@@ -169,7 +187,8 @@ function PostOffice({ friendId, inventory, paused, onSend, onDone }: {
 
   const to = recipient?.tokenId ?? 0n;
   return <>
-    <p className="rt-banner"><strong>Practice post (simulated):</strong> no NFT is minted, no wallet prompt appears and nothing is sent on-chain.</p>
+    <p className="rt-banner"><strong>Practice post (simulated):</strong> no NFT is minted, no wallet prompt appears and nothing is sent on-chain.
+      Stamps cost {rf(STAMP)} of simulated RF.</p>
     <div className="rt-post">
       <div className="rt-steps">
         <fieldset>
@@ -182,11 +201,12 @@ function PostOffice({ friendId, inventory, paused, onSend, onDone }: {
             <p className="rt-hint">Tap up to three flowers from your satchel.</p>
             <div className="rt-row">{FLOWER_IDS.filter(flower => inventory[flower] > 0).map(flower =>
               <button key={flower} type="button" className="rt-chip" disabled={paused || picks.length >= 3 || left(flower) <= 0}
-                onClick={() => setPicks([...picks, flower])}>+ {FLOWERS[flower].name} <small>{left(flower)}</small></button>)}</div>
+                onClick={() => setPicks([...picks, flower])}>+ {FLOWERS[flower].name} <small>{left(flower)}{isGarden(flower) ? ` · ${rf(valueOf(definition, flower))}` : ""}</small></button>)}</div>
             {picks.length > 0 && <div className="rt-row">{picks.map((pick, index) =>
               <button key={`${pick}-${index}`} type="button" className="rt-chip rt-picked" disabled={paused} aria-label={`Remove ${FLOWERS[pick].name}`}
                 onClick={() => setPicks(picks.filter((_, i) => i !== index))}>{FLOWERS[pick].name} ×</button>)}</div>}
-          </> : <p className="rt-hint">No flowers yet. Pick some in the east meadow or by the pond.</p>)}
+            {carries > 0n && <p className="rt-hint">Garden flowers carry their value: {rf(carries)} travels with this bouquet.</p>}
+          </> : <p className="rt-hint">No flowers yet. Pick some in the east meadow or by the pond, or grow them from seed.</p>)}
           {kind === "letter" && <label className="rt-field">Message
             <select value={message} disabled={paused} onChange={event => setMessage(Number(event.target.value))}>
               {MESSAGES.map((text, index) => <option key={text} value={index}>{text}</option>)}
@@ -213,7 +233,7 @@ function PostOffice({ friendId, inventory, paused, onSend, onDone }: {
             : <span className="rt-to-empty" aria-hidden="true">?</span>}
           <span>To: {recipient ? `Friend #${recipient.tokenId}` : "…"}</span>
         </div>
-        <button type="button" className="rt-primary" disabled={paused || !ready || !recipient} onClick={send}>Mint &amp; send (simulated)</button>
+        <button type="button" className="rt-primary" disabled={paused || !ready || !recipient || !canStamp} onClick={send}>Stamp &amp; send · {rf(STAMP)} (simulated)</button>
         <p className="rt-hint rt-blocker" role="status">{blocker}</p>
       </div>
     </div>
@@ -230,6 +250,10 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
   const [inventory, setInventory] = useState<Inventory>(EMPTY_INVENTORY);
   const [received, setReceived] = useState<Gift[]>([]), [sent, setSent] = useState<Gift[]>([]), [unread, setUnread] = useState(0);
   const [toast, setToast] = useState(""), [muted, setMuted] = useState(true), [reducedMotion, setReducedMotion] = useState(false);
+  const [snapshot, setSnapshot] = useState<GameSnapshot | null>(null), [busy, setBusy] = useState(false), [actionError, setActionError] = useState("");
+  const [gifted, setGifted] = useState<Record<GardenFlower, number>>({ clover: 0, rose: 0, lily: 0, orchid: 0, goldensun: 0, moonflower: 0 });
+  const [stamps, setStamps] = useState(0);
+  const locked = useRef(false), epoch = useRef(0), garden = useRef<{ blooms: FlowerId[]; sprouts: number }>({ blooms: [], sprouts: 0 });
 
   const sound = useRef<FriendSoundKit | null>(null), toastTimer = useRef(0);
   const position = useRef<Point>({ ...SPAWN }), keys = useRef(new Set<string>()), destination = useRef<Point | null>(null);
@@ -246,6 +270,48 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
     toastTimer.current = window.setTimeout(() => setToast(""), 2800);
   };
   const add = (item: FlowerId | "bun", amount = 1) => setInventory(current => ({ ...current, [item]: current[item] + amount }));
+
+  // Garden flowers live in the SDK's simulated ledger; gifted ones are set aside locally.
+  const definition = client.definition;
+  const bag: Record<FlowerId | "bun", number> = { ...inventory };
+  GARDEN_IDS.forEach((flower, index) => { bag[flower] = Number(snapshot?.inventory[index] ?? 0n) - gifted[flower]; });
+  const balance = (snapshot?.rfBalance ?? 0n) - BigInt(stamps) * STAMP;
+  const pendingPlay = snapshot?.plays.find(play => play.outcomeId === null);
+  const canBuy = Boolean(snapshot) && balance >= definition.price && (snapshot?.freeStake ?? 0n) >= maximumPrize(definition);
+  garden.current = {
+    blooms: GARDEN_IDS.flatMap(flower => Array<FlowerId>(Math.max(0, bag[flower])).fill(flower)).slice(0, PLOT_SLOTS.length),
+    sprouts: (pendingPlay ? 1 : 0),
+  };
+
+  /** Run one SDK action (the runtime shows its own confirmation), then refresh the ledger. */
+  async function act(work: () => Promise<void>) {
+    if (locked.current || paused) return;
+    const version = epoch.current;
+    locked.current = true; setBusy(true); setActionError("");
+    try {
+      await work();
+      const next = await client.read();
+      if (version === epoch.current) setSnapshot(next);
+    } catch (cause) {
+      if (version === epoch.current) {
+        setActionError(cause instanceof Error ? cause.message : "That didn't work. Please try again.");
+        void client.read().then(next => { if (version === epoch.current) setSnapshot(next); }).catch(() => {});
+      }
+    } finally {
+      if (version === epoch.current) { locked.current = false; setBusy(false); }
+    }
+  }
+
+  const plant = () => act(async () => {
+    const version = epoch.current;
+    const seed = pendingPlay ?? (await client.play(1n))[0];
+    if (!live.current.reducedMotion) await wait(1200);
+    const settled = await client.settle(seed.id);
+    if (version !== epoch.current || settled.outcomeId === null) return;
+    const bloom = GARDEN_IDS[settled.outcomeId - 1];
+    play(bloom === "moonflower" ? "reveal-legendary" : bloom === "goldensun" || bloom === "orchid" ? "reveal-rare" : "reveal-common");
+    setMenu({ kind: "garden", bloom });
+  });
 
   function interact(target: Target) {
     if (paused || live.current.menu) return;
@@ -281,7 +347,8 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
       play("reveal-common"); setMenu({ kind: "well", note });
     } else {
       if (type === "mailbox") setUnread(0);
-      play("select"); setMenu({ kind: type as "post" | "mailbox" | "board" });
+      setActionError("");
+      play("select"); setMenu(type === "garden" ? { kind: "garden" } : { kind: type as "post" | "mailbox" | "board" | "stall" });
     }
   }
   const actions = useRef(interact); actions.current = interact;
@@ -338,6 +405,8 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
     position.current = { ...SPAWN }; stop(); flowers.current = createFlowerSpots(); talked.current = new Set(); wished.current = false;
     setMenu(null); setNear(null); nearRef.current = null; setFailed(false); setStatus("Opening the village gates…");
     setInventory(EMPTY_INVENTORY); setSent([]); setUnread(1);
+    epoch.current++; locked.current = false; setBusy(false); setActionError(""); setSnapshot(null); setStamps(0);
+    setGifted({ clover: 0, rose: 0, lily: 0, orchid: 0, goldensun: 0, moonflower: 0 });
     setReceived([makeGift("letter", [], 2, VILLAGERS[1].tokenId, friendId, { village: true })]);
 
     for (const [key, sprites] of Object.entries(VILLAGER_SPRITES)) {
@@ -349,7 +418,7 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
       if (cancelled) return;
       if (snapshot.friendId !== friendId) throw new Error("Game session does not match the selected Friend.");
       const { ground, scenery } = getWorldArt();
-      setMe(sprites); setStatus("");
+      setSnapshot(snapshot); setMe(sprites); setStatus("");
 
       const render = (now: number) => {
         const dt = previous ? Math.min((now - previous) / 1000, 0.05) : 0; previous = now;
@@ -454,6 +523,11 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
         for (const spot of flowers.current) {
           if (visible(spot.x - 20, spot.y - 50, 40, 55)) layers.push({ depth: spot.y, draw: () => paintFlower(ctx, spot, spot.bloomAt <= clock) });
         }
+        const plot = garden.current;
+        PLOT_SLOTS.forEach((slot, index) => {
+          if (index < plot.blooms.length) layers.push({ depth: slot.y, draw: () => paintFlower(ctx, { ...slot, flower: plot.blooms[index], bloomAt: 0 }, true) });
+          else if (index < plot.blooms.length + plot.sprouts) layers.push({ depth: slot.y, draw: () => paintFlower(ctx, { ...slot, flower: "clover", bloomAt: 0 }, false) });
+        });
         const pose = (walking: boolean) => state.reducedMotion ? 0 : Math.floor(now / (walking ? 110 : 190)) % 8;
         for (const npc of npcs) {
           if (!visible(npc.x - 45, npc.y - 80, 90, 90)) continue;
@@ -495,7 +569,9 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
   const blocked = paused || Boolean(menu) || Boolean(status);
   const title = !menu ? "" : menu.kind === "post" ? "Rareton Post Office" : menu.kind === "bakery" ? "Bramble's Bakery"
     : menu.kind === "well" ? "The wishing well" : menu.kind === "board" ? "Village notice board" : menu.kind === "mailbox" ? "Your mailbox"
-    : menu.kind === "chat" ? VILLAGERS[menu.npc].name : menu.kind === "satchel" ? "Your satchel" : "Settings";
+    : menu.kind === "chat" ? VILLAGERS[menu.npc].name : menu.kind === "satchel" ? "Your satchel"
+    : menu.kind === "stall" ? "The seed stall" : menu.kind === "garden" ? (menu.bloom ? "Something bloomed!" : "Community garden") : "Settings";
+  const feedback = <p className="rt-hint" role={actionError ? "alert" : "status"}>{actionError || (busy ? "Waiting for the preview confirmation…" : "")}</p>;
   const close = () => setMenu(null);
 
   return <section className="rt-game" aria-label="Rareton village">
@@ -518,8 +594,8 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
     {!status && me && <>
       <header className="rt-hud" inert={paused || undefined}>
         <div className="rt-title"><strong>Rareton</strong><span>Friend #{friendId.toString()} · {me.familyName}</span></div>
-        <span className="rt-stamp">Simulated gifts</span>
-        <button type="button" disabled={blocked} onClick={() => setMenu({ kind: "satchel" })}>Satchel<span className="rt-count">{countOf(inventory)}</span></button>
+        <span className="rt-stamp" title="Simulated RF balance. Nothing is spent on-chain.">Simulated · {rf(balance)}</span>
+        <button type="button" disabled={blocked} onClick={() => setMenu({ kind: "satchel" })}>Satchel<span className="rt-count">{countOf(bag)}</span></button>
         <button type="button" disabled={blocked} onClick={() => setMenu({ kind: "settings" })} aria-label="Settings">⚙</button>
       </header>
       <p className="rt-toast" role="status" aria-live="polite">{toast}</p>
@@ -533,15 +609,56 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
       {failed && <button type="button" disabled={paused} onClick={() => setRevision(value => value + 1)}>Try again</button>}
     </div>}
     {menu && <GameMenu title={title} onClose={close}>
-      {menu.kind === "post" ? <PostOffice friendId={friendId} inventory={inventory} paused={paused} onDone={close}
+      {menu.kind === "post" ? <PostOffice friendId={friendId} inventory={bag} paused={paused || busy} balance={balance} definition={definition} onDone={close}
         onSend={(gift, spend) => {
+          const entries = Object.entries(spend) as [FlowerId | "bun", number][];
           setInventory(current => {
             const next = { ...current };
-            for (const [item, amount] of Object.entries(spend) as [FlowerId | "bun", number][]) next[item] = Math.max(0, next[item] - amount);
+            for (const [item, amount] of entries) if (item === "bun" || !isGarden(item)) next[item] = Math.max(0, next[item] - amount);
             return next;
           });
-          setSent(list => [gift, ...list]); play("reward");
+          setGifted(current => {
+            const next = { ...current };
+            for (const [item, amount] of entries) if (item !== "bun" && isGarden(item)) next[item] += amount;
+            return next;
+          });
+          setStamps(count => count + 1); setSent(list => [gift, ...list]); play("reward");
         }} />
+      : menu.kind === "stall" ? <>
+        <p className="rt-banner"><strong>Simulated RF:</strong> packets, prices and sales use the SDK's preview ledger. No real RF is spent and no wallet prompt appears.</p>
+        <p>Balance <strong>{rf(balance)}</strong> · {snapshot?.consumables.toString() ?? "0"} seed packet{snapshot?.consumables === 1n ? "" : "s"} ready to plant</p>
+        <table className="rt-odds"><thead><tr><th>Garden flower</th><th>Chance</th><th>Sell value</th></tr></thead>
+          <tbody>{GARDEN_IDS.map(flower => <tr key={flower}><td>{FLOWERS[flower].name}</td><td>{chanceOf(definition, flower)}%</td><td>{rf(valueOf(definition, flower))}</td></tr>)}</tbody></table>
+        <p className="rt-hint">One packet grows exactly one flower. On average a packet grows {rf(definition.outcomes.reduce((total, outcome) => total + outcome.reward * BigInt(outcome.chanceBps), 0n) / 10_000n)} of flowers.</p>
+        <button type="button" className="rt-primary" disabled={!canBuy || busy || paused}
+          onClick={() => void act(async () => { await client.buy(1n); play("purchase"); say("A seed packet! Plant it in the garden plot."); })}>Buy a seed packet · {rf(definition.price)}</button>
+        {!canBuy && snapshot && <p className="rt-hint">{balance < definition.price ? "Not enough simulated RF for a packet." : "The stall is waiting for more backing before selling more packets."}</p>}
+        <h3>Sell garden flowers</h3>
+        {GARDEN_IDS.some(flower => bag[flower] > 0) ? GARDEN_IDS.filter(flower => bag[flower] > 0).map(flower =>
+          <div key={flower} className="rt-sell"><PixelArt rows={flowerIcon(flower)} scale={3} color={FLOWERS[flower].color} label={FLOWERS[flower].name} />
+            <span>{FLOWERS[flower].name} ×{bag[flower]}</span>
+            <button type="button" disabled={busy || paused} onClick={() => void act(async () => { await client.redeem(outcomeOf(flower), 1n); play("reward"); })}>Sell one · {rf(valueOf(definition, flower))}</button>
+          </div>) : <p className="rt-hint">You have no garden flowers to sell. Meadow flowers are free and have no RF value.</p>}
+        {feedback}
+      </>
+      : menu.kind === "garden" ? (menu.bloom ? <div className="rt-chat">
+        <PixelArt rows={flowerIcon(menu.bloom)} scale={9} color={FLOWERS[menu.bloom].color} label={FLOWERS[menu.bloom].name} />
+        <div>
+          <p className="rt-quote">A <strong>{FLOWERS[menu.bloom].name.toLowerCase()}</strong> bloomed! <span className="rt-sim">Simulated</span></p>
+          <p className="rt-note">{chanceOf(definition, menu.bloom)}% chance · worth {rf(valueOf(definition, menu.bloom))}. Keep it for a bouquet (its value travels with the gift) or sell it at the seed stall.</p>
+          <div className="rt-row">
+            <button type="button" disabled={busy || paused || !snapshot?.consumables} onClick={() => { setMenu({ kind: "garden" }); void plant(); }}>Plant another{snapshot?.consumables ? ` (${snapshot.consumables})` : ""}</button>
+            <button type="button" className="rt-primary" disabled={busy || paused} onClick={close}>Lovely!</button>
+          </div>
+        </div>
+      </div> : <>
+        <p>{busy ? "You press the seed into the soil… something is sprouting." : pendingPlay ? "A seed is already in the ground. Let's see what it becomes."
+          : snapshot?.consumables ? `You have ${snapshot.consumables} seed packet${snapshot.consumables === 1n ? "" : "s"}. Each grows one garden flower.`
+          : "No seed packets yet. The seed stall is right next to the garden."}</p>
+        <button type="button" className="rt-primary" disabled={busy || paused || (!pendingPlay && !snapshot?.consumables)} onClick={() => void plant()}>
+          {pendingPlay ? "Finish growing" : "Plant a seed packet"}</button>
+        {feedback}
+      </>)
       : menu.kind === "chat" ? <div className="rt-chat">
         {villagerArt[menu.npc] && <PixelArt rows={spriteFrame(villagerArt[menu.npc], "down", false, 0).frame.rows} scale={5} halo label={VILLAGERS[menu.npc].name} />}
         <div>
@@ -572,6 +689,9 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
         <li><strong>Meadow news.</strong> Flowers in the east meadow and by the pond grow back soon after picking.</li>
         <li><strong>Practice post.</strong> Every gift in Rareton is simulated. Nothing is minted or sent, and there are no transactions or fees.
           Each gift is a real 16 × 16 one-bit picture, the same format as Friend sprites, ready for a future on-chain version.</li>
+        <li><strong>Seed stall.</strong> Seed packets cost {rf(definition.price)} of simulated RF and grow rare garden flowers. The odds are posted at the stall.</li>
+        <li><strong>Post fund.</strong> Every stamp costs {rf(STAMP)}: half is burned, half goes to the village post fund.
+          This visit: <strong>{rf(BigInt(stamps) * STAMP / 2n)} burned</strong>, {rf(BigInt(stamps) * STAMP / 2n)} to the fund (simulated).</li>
         <li><strong>This visit:</strong> {sent.length} gift{sent.length === 1 ? "" : "s"} sent, {received.length} received. The village forgets when you reload.</li>
       </ul>
       : menu.kind === "mailbox" ? <>
@@ -579,10 +699,17 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
         <p className="rt-hint">Letters from villagers are part of Rareton's story, and simulated too.</p>
       </>
       : menu.kind === "satchel" ? <>
+        <p>Balance <strong>{rf(balance)}</strong> <span className="rt-sim">Simulated</span> · {snapshot?.consumables.toString() ?? "0"} seed packets · {stamps} stamp{stamps === 1 ? "" : "s"} used</p>
+        <h3>Meadow & bakery</h3>
         <div className="rt-items">
-          {FLOWER_IDS.map(flower => <div key={flower} className="rt-item"><PixelArt rows={flowerIcon(flower)} scale={4} label={FLOWERS[flower].name} />
-            <span>{FLOWERS[flower].name}<strong>{inventory[flower]}</strong></span></div>)}
-          <div className="rt-item"><PixelArt rows={BUN_ICON} scale={4} label="Honey bun" /><span>Honey bun<strong>{inventory.bun}</strong></span></div>
+          {MEADOW_IDS.map(flower => <div key={flower} className="rt-item"><PixelArt rows={flowerIcon(flower)} scale={4} color={FLOWERS[flower].color} label={FLOWERS[flower].name} />
+            <span>{FLOWERS[flower].name}<strong>{bag[flower]}</strong></span></div>)}
+          <div className="rt-item"><PixelArt rows={BUN_ICON} scale={4} label="Honey bun" /><span>Honey bun<strong>{bag.bun}</strong></span></div>
+        </div>
+        <h3>Garden flowers <span className="rt-sim">RF value · simulated</span></h3>
+        <div className="rt-items">
+          {GARDEN_IDS.map(flower => <div key={flower} className="rt-item"><PixelArt rows={flowerIcon(flower)} scale={4} color={FLOWERS[flower].color} label={FLOWERS[flower].name} />
+            <span>{FLOWERS[flower].name}<strong>{bag[flower]}</strong><small>{rf(valueOf(definition, flower))} each</small></span></div>)}
         </div>
         <h3>Sent gifts <span className="rt-sim">Simulated</span></h3>
         {sent.length ? sent.map(gift => <GiftCard key={gift.id} gift={gift} />) : <p className="rt-hint">Nothing sent yet. Visit the post office north of the square.</p>}
@@ -595,7 +722,7 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
         <label className="rt-check"><input type="checkbox" checked={reducedMotion} onChange={event => setReducedMotion(event.target.checked)} /> Reduce motion</label>
         <p>Walk with WASD or arrow keys, or tap where to go. Press E, or tap a building, flower or villager, to interact.</p>
         <p>Reduced motion keeps Friends on still frames and stops smoke and marker bobbing.</p>
-        <p>Your wallet is only used to confirm you own your Friend. Rareton never asks for a signature or transaction, and all gifts are simulated.</p>
+        <p>Your wallet is only used to confirm you own your Friend. Rareton never asks for a signature or transaction. RF balances, seed packets, stamps and gifts are all simulated.</p>
       </>}
     </GameMenu>}
   </section>;

@@ -87,3 +87,8 @@
   .rt-chat{flex-direction:column}
   .rt-game .rf-frame-scrim{padding-bottom:44px}
 }
+.rt-odds{width:100%;border-collapse:collapse;margin:8px 0;font-size:12px}
+.rt-odds th,.rt-odds td{text-align:left;padding:4px 6px;border-bottom:1px solid #d8c9a6}
+.rt-sell{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #d8c9a6}
+.rt-sell span{flex:1}
+.rt-item small{font-size:10px;color:#5b5346}

@@ -27,6 +27,10 @@ export const MEADOW_AREA: Box = { x: 1380, y: 180, width: 460, height: 380 };
 export const WELL = { x: 960, y: 695 };
 export const BOARD = { x: 1120, y: 566 };
 export const MAILBOX = { x: 1060, y: 332 };
+/** Community garden plot where seed packets are planted, and the seed stall beside it. */
+export const PLOT: Box = { x: 1410, y: 440, width: 210, height: 86 };
+export const STALL = { x: 1730, y: 520 };
+export const PLOT_SLOTS: Point[] = Array.from({ length: 8 }, (_, i) => ({ x: PLOT.x + 30 + (i % 4) * 50, y: PLOT.y + 38 + Math.floor(i / 4) * 40 }));
 const LAMPS: Point[] = [{ x: 840, y: 570 }, { x: 1090, y: 812 }, { x: 830, y: 812 }];
 
 const border: Point[] = [];
@@ -46,6 +50,8 @@ export const OBSTACLES: Box[] = [
   { x: WELL.x - 40, y: WELL.y - 35, width: 80, height: 40 },
   { x: BOARD.x - 36, y: BOARD.y - 12, width: 72, height: 14 },
   { x: MAILBOX.x - 10, y: MAILBOX.y - 12, width: 20, height: 14 },
+  PLOT,
+  { x: STALL.x - 58, y: STALL.y - 30, width: 116, height: 32 },
   ...LAMPS.map(lamp => ({ x: lamp.x - 6, y: lamp.y - 8, width: 12, height: 10 })),
 ];
 
@@ -74,7 +80,7 @@ export type FlowerSpot = Point & { flower: FlowerId; bloomAt: number };
 export function createFlowerSpots(): FlowerSpot[] {
   const spots: FlowerSpot[] = [];
   const meadow: FlowerId[] = ["daisy", "sunflower", "tulip", "poppy", "daisy", "tulip", "sunflower", "daisy"];
-  for (let row = 0; row < 3; row++) for (let col = 0; col < 5; col++) {
+  for (let row = 0; row < 2; row++) for (let col = 0; col < 5; col++) {
     spots.push({ x: 1430 + col * 88 + (row % 2) * 40, y: 240 + row * 110 + ((col * 37) % 30), flower: meadow[(row * 5 + col) % meadow.length], bloomAt: 0 });
   }
   spots.push(
@@ -153,6 +159,12 @@ export function paintGround(): HTMLCanvasElement {
   }
   ctx.fillStyle = LEAF;
   for (const [x, y] of [[-175, -30], [-170, 20], [160, 30], [150, -50], [-40, 100]]) { ctx.fillRect(POND.x + x, POND.y + y - 20, 5, 25); ctx.fillRect(POND.x + x + 8, POND.y + y - 15, 5, 20); }
+  // Garden plot: a wooden frame around furrowed soil.
+  ctx.fillStyle = INK; ctx.fillRect(PLOT.x - 8, PLOT.y - 8, PLOT.width + 16, PLOT.height + 16);
+  ctx.fillStyle = WOOD; ctx.fillRect(PLOT.x - 5, PLOT.y - 5, PLOT.width + 10, PLOT.height + 10);
+  ctx.fillStyle = "#8b6b4a"; ctx.fillRect(PLOT.x, PLOT.y, PLOT.width, PLOT.height);
+  ctx.fillStyle = "#765a3d";
+  for (let y = PLOT.y + 12; y < PLOT.y + PLOT.height; y += 20) ctx.fillRect(PLOT.x + 5, y, PLOT.width - 10, 5);
   // Flower beds under cottage windows.
   for (const b of [BUILDINGS.cottageA, BUILDINGS.cottageB, BUILDINGS.cottageC, BUILDINGS.bakery]) {
     for (let x = b.x + 10; x < b.x + b.width - 10; x += 15) {
@@ -255,6 +267,25 @@ function mailbox(): Scenery {
   return { canvas, x: MAILBOX.x - 30, y: MAILBOX.y - 72, depth: MAILBOX.y };
 }
 
+function stall(): Scenery {
+  const canvas = sprite(140, 130, ctx => {
+    blob(ctx, [[14, 30, 6, 90], [120, 30, 6, 90]], WOOD, 3);
+    blob(ctx, [[10, 82, 120, 36]], "#b08858", 3);
+    for (let x = 18; x < 124; x += 18) {
+      ctx.fillStyle = ["#e0707a", "#f0c24a", "#8aa2de", "#7fb069"][(x / 18) % 4 | 0];
+      ctx.fillRect(x, 70, 12, 14); ctx.fillStyle = INK; ctx.fillRect(x, 70, 12, 2);
+    }
+    const stripes: [number, number, number, number][] = [[4, 18, 132, 26]];
+    blob(ctx, stripes, "#f7efd9", 3);
+    ctx.fillStyle = "#c9405a"; for (let x = 4; x < 136; x += 22) ctx.fillRect(x, 18, 11, 26);
+    ctx.fillStyle = INK; for (let x = 4; x < 136; x += 11) ctx.fillRect(x, 44, 6, 5);
+    ctx.font = "bold 14px ui-monospace, monospace";
+    blob(ctx, [[40, 0, 60, 18]], "#f7efd9", 2);
+    ctx.fillStyle = INK; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("SEEDS", 70, 10);
+  });
+  return { canvas, x: STALL.x - 70, y: STALL.y - 120, depth: STALL.y };
+}
+
 function lamp(p: Point): Scenery {
   const canvas = sprite(40, 110, ctx => {
     blob(ctx, [[17, 30, 6, 72]], "#4a4640", 3);
@@ -268,7 +299,7 @@ export function paintScenery(): Scenery[] {
   return [
     ...Object.values(BUILDINGS).map(building),
     ...TREES.map((p, index) => tree(p, index % 2)),
-    well(), board(), mailbox(), ...LAMPS.map(lamp),
+    well(), board(), mailbox(), stall(), ...LAMPS.map(lamp),
   ];
 }
 

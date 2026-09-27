@@ -4,7 +4,10 @@
  * Everything here is local and simulated; nothing is minted or sent.
  */
 
-export type FlowerId = "daisy" | "tulip" | "bluebell" | "poppy" | "sunflower";
+export type MeadowFlower = "daisy" | "tulip" | "bluebell" | "poppy" | "sunflower";
+/** Garden flowers only grow from seed packets; their order matches game.json outcomes. */
+export type GardenFlower = "clover" | "rose" | "lily" | "orchid" | "goldensun" | "moonflower";
+export type FlowerId = MeadowFlower | GardenFlower;
 export type GiftKind = "bouquet" | "letter" | "bun";
 export type Inventory = Readonly<Record<FlowerId | "bun", number>>;
 
@@ -20,6 +23,10 @@ export type Gift = Readonly<{
   code: string;
   /** Village story gifts from NPC villagers, as opposed to player sends. */
   village?: boolean;
+  /** Simulated RF value of garden flowers travelling with the gift. */
+  carries?: bigint;
+  /** Simulated postage paid. */
+  stamp?: bigint;
 }>;
 
 export const FLOWERS: Readonly<Record<FlowerId, Readonly<{ name: string; color: string; head: readonly string[] }>>> = {
@@ -28,9 +35,23 @@ export const FLOWERS: Readonly<Record<FlowerId, Readonly<{ name: string; color: 
   bluebell: { name: "Bluebell", color: "#8aa2de", head: [".##.", "####", "#..#"] },
   poppy: { name: "Poppy", color: "#d9573f", head: [".##.", "####", "####", ".##."] },
   sunflower: { name: "Sunflower", color: "#f0c24a", head: [".###.", "#...#", "#.#.#", "#...#", ".###."] },
+  clover: { name: "Clover", color: "#7fb069", head: ["#.#", "###", ".#."] },
+  rose: { name: "Rose", color: "#c9405a", head: [".##.", "#..#", "#.##", ".##."] },
+  lily: { name: "Lily", color: "#fff3c4", head: ["#.#.#", ".###.", "..#.."] },
+  orchid: { name: "Orchid", color: "#b67fc9", head: ["##.##", ".###.", "#.#.#"] },
+  goldensun: { name: "Golden sunflower", color: "#e8b923", head: ["#.#.#", ".###.", "##.##", ".###.", "#.#.#"] },
+  moonflower: { name: "Moonflower", color: "#cfd9ff", head: [".###", "##..", "##..", ".###"] },
 };
-export const FLOWER_IDS = Object.keys(FLOWERS) as FlowerId[];
-export const EMPTY_INVENTORY: Inventory = { daisy: 0, tulip: 0, bluebell: 0, poppy: 0, sunflower: 0, bun: 0 };
+export const MEADOW_IDS: readonly MeadowFlower[] = ["daisy", "tulip", "bluebell", "poppy", "sunflower"];
+export const GARDEN_IDS: readonly GardenFlower[] = ["clover", "rose", "lily", "orchid", "goldensun", "moonflower"];
+export const FLOWER_IDS: readonly FlowerId[] = [...MEADOW_IDS, ...GARDEN_IDS];
+export const isGarden = (flower: FlowerId): flower is GardenFlower => (GARDEN_IDS as readonly string[]).includes(flower);
+/** SDK outcome IDs start at one. */
+export const outcomeOf = (flower: GardenFlower) => GARDEN_IDS.indexOf(flower) + 1;
+export const EMPTY_INVENTORY: Inventory = {
+  daisy: 0, tulip: 0, bluebell: 0, poppy: 0, sunflower: 0,
+  clover: 0, rose: 0, lily: 0, orchid: 0, goldensun: 0, moonflower: 0, bun: 0,
+};
 
 export const MESSAGES = [
   "Thinking of you, friend.",
@@ -162,7 +183,7 @@ export function giftTitle(kind: GiftKind, flowers: readonly FlowerId[], messageI
 }
 
 let nextGiftId = 1;
-export function makeGift(kind: GiftKind, flowers: readonly FlowerId[], messageIndex: number, from: bigint, to: bigint, extra: { toFamily?: string; village?: boolean } = {}): Gift {
+export function makeGift(kind: GiftKind, flowers: readonly FlowerId[], messageIndex: number, from: bigint, to: bigint, extra: { toFamily?: string; village?: boolean; carries?: bigint; stamp?: bigint } = {}): Gift {
   const rows = giftArt(kind, flowers, messageIndex, to);
   return Object.freeze({
     id: nextGiftId++, kind, from, to, rows, code: giftCode(rows),

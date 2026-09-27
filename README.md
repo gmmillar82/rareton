@@ -14,8 +14,9 @@ MetaMask app's Browser tab. Regular mobile browsers have no wallet, so they show
 
 Requires a browser wallet on **Robinhood mainnet (chain 4663)** holding a hardwired
 Rare Friends Generations NFT (generation ≥ 1). Connecting the wallet and the
-read-only ownership check are the only wallet interactions. **All gifts are
-simulated.** Nothing is minted or sent, and there are no transactions, signatures or fees.
+read-only ownership check are the only wallet interactions. **RF, seed packets,
+stamps and gifts are all simulated.** Nothing is minted or sent, and there are no
+transactions, signatures or real fees.
 
 ## Run locally
 
@@ -36,7 +37,7 @@ Automated checks (mock wallet, headless Chromium):
 ```sh
 npx playwright install --with-deps chromium
 npx friendsdk test games/rareton --screenshot artifacts/game.png
-node scripts/smoke.mjs 960   # walk to the post office and send a simulated letter
+node scripts/smoke.mjs 960   # post a stamped letter, buy and plant a seed packet
 node scripts/smoke.mjs 360   # same, phone width
 ```
 

@@ -1,8 +1,13 @@
 {
   "name": "Rareton",
-  "consumable": "Unused reference token",
+  "consumable": "Seed packet",
   "price": "1000000000000000000",
   "outcomes": [
-    { "name": "Unused reference reward", "chanceBps": 10000, "reward": "1000000000000000000" }
+    { "name": "Clover", "chanceBps": 4000, "reward": "250000000000000000" },
+    { "name": "Rose", "chanceBps": 2500, "reward": "750000000000000000" },
+    { "name": "Lily", "chanceBps": 2000, "reward": "1000000000000000000" },
+    { "name": "Orchid", "chanceBps": 1000, "reward": "1500000000000000000" },
+    { "name": "Golden sunflower", "chanceBps": 450, "reward": "4000000000000000000" },
+    { "name": "Moonflower", "chanceBps": 50, "reward": "20000000000000000000" }
   ]
 }
