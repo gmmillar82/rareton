@@ -7,6 +7,11 @@ for the [Rare Friends Vibeathon](https://github.com/spokesz/rarefriends-vibeatho
 
 **Play:** https://gmmillar82.github.io/rareton/
 
+**On a phone:** open it inside MetaMask's in-app browser, using
+[this link](https://metamask.app.link/dapp/gmmillar82.github.io/rareton/) or the
+MetaMask app's Browser tab. Regular mobile browsers have no wallet, so they show
+"No browser wallet found".
+
 Requires a browser wallet on **Robinhood mainnet (chain 4663)** holding a hardwired
 Rare Friends Generations NFT (generation ≥ 1). Connecting the wallet and the
 read-only ownership check are the only wallet interactions. **All gifts are
