@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "friendsdk dev games/rareton --host 0.0.0.0 --port 4173",
     "build": "friendsdk build games/rareton",
-    "check": "friendsdk check games/rareton"
+    "check": "friendsdk check games/rareton",
+    "build:pages": "friendsdk build games/rareton && node scripts/stamp-version.mjs games/rareton/.friendsdk $(git rev-parse --short HEAD)"
   },
   "dependencies": {
     "@rarefriends/friendsdk": "file:rarefriends-friendsdk-0.1.2.tgz",

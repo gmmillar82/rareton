@@ -26,6 +26,7 @@ Requires Node.js 22+.
 npm ci
 npm run dev        # http://localhost:4173
 npm run build      # static output in games/rareton/.friendsdk/
+npm run build:pages   # same, with ?v=<commit> on asset links for GitHub Pages
 npm run check      # FriendSDK game validation
 ```
 
@@ -39,6 +40,7 @@ npx playwright install --with-deps chromium
 npx friendsdk test games/rareton --screenshot artifacts/game.png
 node scripts/smoke.mjs 960   # post a stamped letter, buy and plant a seed packet
 node scripts/smoke.mjs 360   # same, phone width
+npm run build:pages && node scripts/check-pages-build.mjs   # play the exact Pages build
 ```
 
 Game rules, controls and gift format are in [games/rareton/README.md](games/rareton/README.md).

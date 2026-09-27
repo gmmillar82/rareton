@@ -673,7 +673,10 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
         <p className="rt-hint">One packet grows exactly one flower. On average a packet grows {rf(definition.outcomes.reduce((total, outcome) => total + outcome.reward * BigInt(outcome.chanceBps), 0n) / 10_000n)} of flowers.</p>
         <button type="button" className="rt-primary" disabled={!canBuy || busy || paused}
           onClick={() => void act(async () => { await client.buy(1n); play("purchase"); say("A seed packet! Plant it in the garden plot."); })}>Buy a seed packet · {rf(definition.price)}</button>
-        {!canBuy && snapshot && <p className="rt-hint">{balance < definition.price ? "Not enough simulated RF for a packet." : "The stall is waiting for more backing before selling more packets."}</p>}
+        {!canBuy && snapshot && <p className="rt-hint" role="alert">{balance < definition.price ? "Not enough simulated RF for a packet."
+          // Nothing reserved yet but still short of backing: the page loaded files from two different versions.
+          : snapshot.reservedPlays === 0n && snapshot.rewardLiability === 0n ? "Rareton was just updated. Please reload the page to use the seed stall."
+          : "Every packet reserves the top prize. Plant or sell what you have before buying more."}</p>}
         <h3>Sell garden flowers</h3>
         {GARDEN_IDS.some(flower => bag[flower] > 0) ? GARDEN_IDS.filter(flower => bag[flower] > 0).map(flower =>
           <div key={flower} className="rt-sell"><PixelArt rows={flowerIcon(flower)} scale={3} color={FLOWERS[flower].color} label={FLOWERS[flower].name} />
