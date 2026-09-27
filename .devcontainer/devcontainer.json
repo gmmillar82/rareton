@@ -1,0 +1,42 @@
+{
+  "name": "rare-friends-vibeathon",
+  // Node 22 (FriendSDK requires 22+); image already includes git and npm.
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+
+  // Mount the workspace at the same path as on the Mac, and share ~/.claude,
+  // so Claude Code finds the same project memory and conversation history.
+  "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
+  "workspaceFolder": "${localWorkspaceFolder}",
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind"
+  ],
+
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  // Podman: keep file ownership sane on the bind-mounted workspace.
+  "runArgs": ["--userns=keep-id"],
+  "containerUser": "node",
+  "remoteUser": "node",
+  "updateRemoteUserUID": true,
+
+  // Vite dev server (5173) and preview/build server (4173).
+  "forwardPorts": [5173, 4173],
+  "portsAttributes": {
+    "5173": { "label": "FriendSDK dev", "onAutoForward": "notify" },
+    "4173": { "label": "FriendSDK preview", "onAutoForward": "silent" }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  },
+
+  "postCreateCommand": "node -v && npm -v && git --version && gh --version"
+}
