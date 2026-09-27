@@ -50,6 +50,7 @@
 .rt-envelope{display:grid;justify-items:center;gap:8px;padding:10px;border:2px solid #cbb994;border-radius:6px;background:#fffaf0}
 .rt-to{display:flex;align-items:center;gap:6px;font-size:12px}
 .rt-to .rt-pixels{border-width:1px}
+.rt-blocker{max-width:220px;text-align:center;margin:0}
 .rt-to-empty{display:grid;place-items:center;width:36px;height:36px;border:1px dashed var(--ink);border-radius:4px}
 .rt-postcard{display:flex;gap:14px;align-items:center;padding:12px;border:2px solid var(--ink);border-radius:8px;background:#fffaf0;margin-bottom:12px}
 .rt-postcard h3{margin:0 0 6px!important}

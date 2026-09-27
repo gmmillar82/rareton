@@ -20,10 +20,18 @@ await testGame("./games/rareton", {
     await page.keyboard.press("e");
     await game.getByText("Practice post (simulated)").waitFor();
     await game.getByRole("button", { name: "Letter" }).click();
+    // Let the recipient lookup reach the real public artwork registry instead of the fixture mock.
+    await page.route(/rpc\.mainnet\.chain\.robinhood\.com/, route => route.continue());
+    await game.getByLabel("Friend number").fill("42");
+    await game.getByText("Ready to send!").waitFor({ timeout: 20_000 });
     await page.screenshot({ path: `./artifacts/post-${width}.png` });
-    await game.getByRole("button", { name: /close/i }).first().click();
+    await game.getByRole("button", { name: "Mint & send (simulated)" }).click();
+    await game.getByText("On its way!").waitFor();
+    await page.screenshot({ path: `./artifacts/sent-${width}.png` });
+    await game.getByRole("button", { name: "Back to the village" }).click();
     await game.getByRole("button", { name: /Satchel/ }).click();
     await game.getByText("Sent gifts").waitFor();
+    await game.getByText(/to Friend #42/).waitFor();
     await page.screenshot({ path: `./artifacts/satchel-${width}.png` });
     await game.getByRole("button", { name: /close/i }).first().click();
   },

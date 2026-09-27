@@ -110,13 +110,20 @@ function PostOffice({ friendId, inventory, paused, onSend, onDone }: {
   const left = (flower: FlowerId) => inventory[flower] - picks.filter(pick => pick === flower).length;
   const ready = kind === "bouquet" ? picks.length > 0 : kind === "bun" ? inventory.bun > 0 : true;
 
-  async function find() {
-    const digits = address.trim().replace(/^#/, "");
-    setRecipient(null);
+  // Look the Friend up shortly after typing stops; Find (or Enter) looks up immediately.
+  useEffect(() => {
+    if (!address.trim()) return;
+    const timer = window.setTimeout(() => void find(address), 600);
+    return () => window.clearTimeout(timer);
+  }, [address]);
+
+  async function find(value: string) {
+    const digits = value.trim().replace(/^#/, "");
+    const version = ++request.current;
+    setRecipient(null); setLooking(false);
     if (!/^\d{1,7}$/.test(digits) || BigInt(digits) < 1n) { setProblem("Enter a Friend number, like 42."); return; }
     const id = BigInt(digits);
     if (id === friendId) { setProblem("That's your own Friend! Choose someone else to surprise."); return; }
-    const version = ++request.current;
     setLooking(true); setProblem("");
     try {
       const sprites = await reader.read(id);
@@ -125,6 +132,12 @@ function PostOffice({ friendId, inventory, paused, onSend, onDone }: {
       if (version === request.current) setProblem("Couldn't load that Friend's artwork. Check your connection and try again.");
     } finally { if (version === request.current) setLooking(false); }
   }
+
+  const hasFlowers = FLOWER_IDS.some(flower => inventory[flower] > 0);
+  const blocker = !ready ? (kind === "bouquet"
+      ? hasFlowers ? "Tap a flower on the left to add it to the bouquet." : "No flowers yet. Pick some in the meadow, or send a letter instead."
+      : "You need a honey bun from Bramble's bakery first.")
+    : looking ? "Finding that Friend…" : !recipient ? "Type the number of the Friend you're sending to." : "Ready to send!";
 
   function send() {
     if (!recipient || !ready || paused) return;
@@ -182,7 +195,7 @@ function PostOffice({ friendId, inventory, paused, onSend, onDone }: {
         </fieldset>
         <fieldset>
           <legend>2 · Address it</legend>
-          <form className="rt-row" onSubmit={event => { event.preventDefault(); void find(); }}>
+          <form className="rt-row" onSubmit={event => { event.preventDefault(); void find(address); }}>
             <label className="rt-field rt-grow">Friend number
               <input value={address} inputMode="numeric" autoComplete="off" placeholder="e.g. 42" maxLength={8} disabled={paused}
                 onChange={event => { setAddress(event.target.value); setRecipient(null); setProblem(""); }} /></label>
@@ -201,6 +214,7 @@ function PostOffice({ friendId, inventory, paused, onSend, onDone }: {
           <span>To: {recipient ? `Friend #${recipient.tokenId}` : "…"}</span>
         </div>
         <button type="button" className="rt-primary" disabled={paused || !ready || !recipient} onClick={send}>Mint &amp; send (simulated)</button>
+        <p className="rt-hint rt-blocker" role="status">{blocker}</p>
       </div>
     </div>
   </>;

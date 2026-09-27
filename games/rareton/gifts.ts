@@ -147,7 +147,11 @@ export function giftCode(rows: readonly string[]) {
   rows.forEach((row, y) => [...row].forEach((pixel, x) => { if (pixel === "#") code |= 1n << BigInt(y * 16 + x); }));
   return `0x${code.toString(16).padStart(64, "0")}`;
 }
-export const shortCode = (code: string) => `${code.slice(0, 6)}…${code.slice(-4)}`;
+/** Blank rows are zero bits, so trim zeros at both ends before abbreviating the code. */
+export function shortCode(code: string) {
+  const digits = code.slice(2).replace(/^0+|0+$/g, "") || "0";
+  return digits.length <= 10 ? `0x${digits}` : `0x${digits.slice(0, 5)}…${digits.slice(-5)}`;
+}
 
 export function giftTitle(kind: GiftKind, flowers: readonly FlowerId[], messageIndex: number) {
   if (kind === "letter") return `Letter · “${MESSAGES[messageIndex]}”`;
