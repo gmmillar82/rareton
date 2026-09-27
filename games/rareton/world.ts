@@ -31,7 +31,7 @@ export const MAILBOX = { x: 1060, y: 332 };
 export const PLOT: Box = { x: 1410, y: 440, width: 210, height: 86 };
 export const STALL = { x: 1730, y: 520 };
 export const PLOT_SLOTS: Point[] = Array.from({ length: 8 }, (_, i) => ({ x: PLOT.x + 30 + (i % 4) * 50, y: PLOT.y + 38 + Math.floor(i / 4) * 40 }));
-const LAMPS: Point[] = [{ x: 840, y: 570 }, { x: 1090, y: 812 }, { x: 830, y: 812 }];
+export const LAMPS: Point[] = [{ x: 840, y: 570 }, { x: 1090, y: 812 }, { x: 830, y: 812 }];
 
 const border: Point[] = [];
 for (let x = 60; x < WORLD.width; x += 130) border.push({ x, y: 70 }, { x: x + 40, y: 1262 });
@@ -302,6 +302,17 @@ export function paintScenery(): Scenery[] {
     well(), board(), mailbox(), stall(), ...LAMPS.map(lamp),
   ];
 }
+
+/** Building windows in world space, for the night-time glow. Matches building() geometry. */
+export const WINDOWS: Box[] = Object.values(BUILDINGS).flatMap(b =>
+  [b.x + b.width / 4 - 17, b.x + (b.width * 3) / 4 - 17].map(x => ({ x, y: b.y + b.height - 52, width: 34, height: 28 })));
+
+/** Where fireflies gather at night: the meadow, the pond and the garden. */
+export const FIREFLIES: Point[] = Array.from({ length: 34 }, (_, i) => {
+  const areas = [{ x: 1400, y: 200, w: 420, h: 330 }, { x: 240, y: 880, w: 400, h: 300 }, { x: 1100, y: 850, w: 700, h: 300 }];
+  const area = areas[i % areas.length], a = (i * 7919) % 1000 / 1000, b = (i * 104729) % 1000 / 1000;
+  return { x: area.x + a * area.w, y: area.y + b * area.h };
+});
 
 /** Chimney tops for animated smoke puffs. */
 export const CHIMNEYS: Point[] = Object.values(BUILDINGS).filter(b => b.chimney).map(b => ({ x: b.x + b.width - 48, y: b.y - 66 }));

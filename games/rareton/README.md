@@ -37,6 +37,9 @@ follows the system setting). Input pauses whenever the runtime pauses the game o
   **Stamp & send**. Every gift needs a 0.1 RF stamp. Garden flowers in a bouquet
   carry their RF value to the recipient. The gift is listed under *Sent gifts*.
 - **Mailbox** holds gifts from villagers (also simulated story items).
+- **Day and night**: a village day lasts four minutes. At night the lamps glow, windows
+  light up and fireflies come out over the meadow, pond and cottages. You can turn the
+  cycle off in Settings. Reduced motion keeps fireflies still.
 - Nothing persists. Reloading starts a fresh visit. The SDK sandbox has no storage.
 
 ## Gift art

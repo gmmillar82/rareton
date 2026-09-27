@@ -10,7 +10,7 @@ import { formatGameAmount } from "@rarefriends/friendsdk/ui";
 import "@rarefriends/friendsdk/frame.css";
 import "./style.css";
 import {
-  BUILDINGS, BOARD, CHIMNEYS, INK, MAILBOX, PLOT, PLOT_SLOTS, SPAWN, STALL, WELL, WORLD, advance, clamp, createFlowerSpots, distance,
+  BUILDINGS, BOARD, CHIMNEYS, FIREFLIES, INK, LAMPS, MAILBOX, WINDOWS, PLOT, PLOT_SLOTS, SPAWN, STALL, WELL, WORLD, advance, clamp, createFlowerSpots, distance,
   paintFlower, paintGround, paintScenery, walkable, type Box, type FlowerSpot, type Point, type Scenery,
 } from "./world";
 import {
@@ -33,6 +33,15 @@ const STAMP = RF / 10n;
 const rf = (value: bigint) => `${formatGameAmount(value, 18)} RF`;
 const valueOf = (definition: ChanceGameDefinition, flower: GardenFlower) => definition.outcomes[outcomeOf(flower) - 1].reward;
 const chanceOf = (definition: ChanceGameDefinition, flower: GardenFlower) => definition.outcomes[outcomeOf(flower) - 1].chanceBps / 100;
+/** One village day lasts four minutes: morning, afternoon, evening, night, then dawn. */
+const DAY_MS = 240_000, NIGHT_ALPHA = 0.5;
+function nightness(phase: number) {
+  if (phase < 0.55) return 0;
+  if (phase < 0.65) return (phase - 0.55) / 0.1;
+  if (phase < 0.9) return 1;
+  return 1 - (phase - 0.9) / 0.1;
+}
+const timeOfDay = (phase: number) => phase < 0.3 ? "Morning" : phase < 0.55 ? "Afternoon" : phase < 0.65 ? "Evening" : phase < 0.9 ? "Night" : "Dawn";
 const wait = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms));
 const MOVE_KEYS = new Set(["w", "a", "s", "d", "arrowup", "arrowleft", "arrowdown", "arrowright"]);
 
@@ -252,7 +261,7 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
   const [toast, setToast] = useState(""), [muted, setMuted] = useState(true), [reducedMotion, setReducedMotion] = useState(false);
   const [snapshot, setSnapshot] = useState<GameSnapshot | null>(null), [busy, setBusy] = useState(false), [actionError, setActionError] = useState("");
   const [gifted, setGifted] = useState<Record<GardenFlower, number>>({ clover: 0, rose: 0, lily: 0, orchid: 0, goldensun: 0, moonflower: 0 });
-  const [stamps, setStamps] = useState(0);
+  const [stamps, setStamps] = useState(0), [dayNight, setDayNight] = useState(true), [clock, setClock] = useState("Morning");
   const locked = useRef(false), epoch = useRef(0), garden = useRef<{ blooms: FlowerId[]; sprouts: number }>({ blooms: [], sprouts: 0 });
 
   const sound = useRef<FriendSoundKit | null>(null), toastTimer = useRef(0);
@@ -260,8 +269,8 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
   const pending = useRef<string | null>(null), camera = useRef<Point>({ x: 0, y: 0 }), view = useRef({ width: 960, height: 640, zoom: 1, dpr: 1 });
   const targets = useRef<Target[]>([]), nearRef = useRef<Target | null>(null), flowers = useRef<FlowerSpot[]>(createFlowerSpots());
   const talked = useRef(new Set<number>()), wished = useRef(false);
-  const live = useRef({ paused, menu, reducedMotion, ready: false });
-  live.current = { paused, menu, reducedMotion, ready: !status };
+  const live = useRef({ paused, menu, reducedMotion, dayNight, ready: false });
+  live.current = { paused, menu, reducedMotion, dayNight, ready: !status };
 
   const stop = () => { keys.current.clear(); destination.current = null; pending.current = null; };
   const play = (cue: FriendSoundCue) => { sound.current?.play(cue); };
@@ -399,7 +408,7 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
   useEffect(() => {
     const surface = canvas.current, ctx = surface?.getContext("2d");
     if (!surface || !ctx) { setFailed(true); setStatus("This browser can't draw the village."); return; }
-    let cancelled = false, frame = 0, previous = 0, lastNear = "";
+    let cancelled = false, frame = 0, previous = 0, lastNear = "", lastClock = "", dayTime = DAY_MS * 0.05;
     let facing: SpriteFacing = "down", side: "left" | "right" = "right";
     const npcs: Npc[] = [];
     position.current = { ...SPAWN }; stop(); flowers.current = createFlowerSpots(); talked.current = new Set(); wished.current = false;
@@ -423,6 +432,11 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
       const render = (now: number) => {
         const dt = previous ? Math.min((now - previous) / 1000, 0.05) : 0; previous = now;
         const state = live.current, active = !state.paused && !state.menu && !document.hidden;
+        // Village time only passes while the village is visible and not paused by the runtime.
+        if (!state.paused && !document.hidden) dayTime += dt * 1000;
+        const phase = (dayTime % DAY_MS) / DAY_MS, dark = state.dayNight ? nightness(phase) : 0;
+        const label = state.dayNight ? timeOfDay(phase) : "";
+        if (label !== lastClock) { lastClock = label; setClock(label); }
         const p = position.current, before = { ...p };
         const { width, height, zoom, dpr } = view.current, vw = width / zoom, vh = height / zoom;
 
@@ -548,6 +562,33 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
             ctx.fillRect(Math.round(chimney.x + Math.sin(t * 2) * 6 - size / 2), Math.round(chimney.y - 10 - t * 26), size, size);
           }
         }
+        if (dark > 0) {
+          ctx.fillStyle = `rgba(24, 28, 72, ${(dark * NIGHT_ALPHA).toFixed(3)})`;
+          ctx.fillRect(cam.x, cam.y, vw, vh);
+          ctx.save(); ctx.globalCompositeOperation = "lighter";
+          for (const lamp of LAMPS) {
+            if (!visible(lamp.x - 90, lamp.y - 180, 180, 200)) continue;
+            const glow = ctx.createRadialGradient(lamp.x, lamp.y - 88, 4, lamp.x, lamp.y - 88, 90);
+            glow.addColorStop(0, `rgba(255, 205, 120, ${(0.45 * dark).toFixed(3)})`); glow.addColorStop(1, "rgba(255, 205, 120, 0)");
+            ctx.fillStyle = glow; ctx.fillRect(lamp.x - 90, lamp.y - 178, 180, 180);
+          }
+          ctx.restore();
+          for (const w of WINDOWS) {
+            if (!visible(w.x, w.y, w.width, w.height)) continue;
+            ctx.fillStyle = `rgba(255, 214, 120, ${(0.9 * dark).toFixed(3)})`; ctx.fillRect(w.x, w.y, w.width, w.height);
+            ctx.fillStyle = INK; ctx.fillRect(w.x + 15, w.y, 4, w.height); ctx.fillRect(w.x, w.y + 12, w.width, 4);
+          }
+          if (dark > 0.3) FIREFLIES.forEach((fly, index) => {
+            const t = now / 1000;
+            const x = state.reducedMotion ? fly.x : fly.x + Math.sin(t * 0.6 + index) * 18;
+            const y = state.reducedMotion ? fly.y : fly.y + Math.cos(t * 0.45 + index * 1.7) * 12;
+            if (!visible(x - 8, y - 8, 16, 16)) return;
+            const blink = state.reducedMotion ? 0.8 : (Math.sin(t * 2.2 + index * 1.3) + 1) / 2;
+            const alpha = ((dark - 0.3) / 0.7) * blink;
+            ctx.fillStyle = `rgba(230, 255, 140, ${(alpha * 0.3).toFixed(3)})`; ctx.fillRect(Math.round(x) - 5, Math.round(y) - 5, 10, 10);
+            ctx.fillStyle = `rgba(240, 255, 170, ${alpha.toFixed(3)})`; ctx.fillRect(Math.round(x) - 2, Math.round(y) - 2, 4, 4);
+          });
+        }
         for (const npc of npcs) if (distance(npc, p) < 170) tag(ctx, VILLAGERS[npc.index].name, npc.x, npc.y - 112);
         const focus = nearRef.current;
         if (focus && active) {
@@ -600,7 +641,7 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
       </header>
       <p className="rt-toast" role="status" aria-live="polite">{toast}</p>
       <div className="rt-guide" inert={blocked || undefined}>
-        <p><span className="rt-desktop">WASD / arrows · E · </span>Tap to walk{unread > 0 ? ` · ${unread} letter${unread > 1 ? "s" : ""} in your mailbox` : ""}</p>
+        <p>{clock ? `${clock} · ` : ""}<span className="rt-desktop">WASD / arrows · E · </span>Tap to walk{unread > 0 ? ` · ${unread} letter${unread > 1 ? "s" : ""} in your mailbox` : ""}</p>
         {near && <button type="button" className="rt-action" onClick={() => interact(near)}>{near.label}<span className="rt-desktop"> · E</span></button>}
       </div>
     </>}
@@ -720,8 +761,9 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
           if (!next) { void sound.current?.unlock(); sound.current?.play("select"); }
         }}>{muted ? "Sound: off" : "Sound: on"}</button>
         <label className="rt-check"><input type="checkbox" checked={reducedMotion} onChange={event => setReducedMotion(event.target.checked)} /> Reduce motion</label>
+        <label className="rt-check"><input type="checkbox" checked={dayNight} onChange={event => setDayNight(event.target.checked)} /> Day and night (a village day lasts four minutes)</label>
         <p>Walk with WASD or arrow keys, or tap where to go. Press E, or tap a building, flower or villager, to interact.</p>
-        <p>Reduced motion keeps Friends on still frames and stops smoke and marker bobbing.</p>
+        <p>Reduced motion keeps Friends on still frames and stops smoke, marker bobbing and firefly blinking.</p>
         <p>Your wallet is only used to confirm you own your Friend. Rareton never asks for a signature or transaction. RF balances, seed packets, stamps and gifts are all simulated.</p>
       </>}
     </GameMenu>}
