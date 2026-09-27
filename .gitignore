@@ -1,3 +1,5 @@
 node_modules/
 friendsdk/
 .DS_Store
+artifacts/
+.friendsdk/

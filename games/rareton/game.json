@@ -1,0 +1,8 @@
+{
+  "name": "Rareton",
+  "consumable": "Unused reference token",
+  "price": "1000000000000000000",
+  "outcomes": [
+    { "name": "Unused reference reward", "chanceBps": 10000, "reward": "1000000000000000000" }
+  ]
+}

@@ -1,0 +1,5 @@
+/* Trusted runtime layout: 3:2 on wider screens, taller portrait frame on phones. */
+:root { --rf-game-max-width: 960px; --rf-game-aspect-ratio: 3 / 2; }
+@media (max-width: 620px) and (orientation: portrait) {
+  :root { --rf-game-max-width: 620px; --rf-game-aspect-ratio: 3 / 4; }
+}
