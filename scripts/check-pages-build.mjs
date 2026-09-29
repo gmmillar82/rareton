@@ -31,7 +31,17 @@ try {
   console.log("frame src:", await page.locator("iframe").getAttribute("src"));
   await canvas.focus();
   const hold = async (key, ms) => { await page.keyboard.down(key); await page.waitForTimeout(ms); await page.keyboard.up(key); };
-  await hold("w", 400); await hold("d", 3400); await hold("w", 900);
+  // Steer by the reported position: to the clear row below the well, east to the stall, then north to it.
+  const at = () => canvas.evaluate(node => [Number(node.dataset.x), Number(node.dataset.y)]);
+  const steer = async (axis, target, less, more) => {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const delta = target - (await at())[axis];
+      if (Math.abs(delta) < 6) return;
+      await hold(delta > 0 ? more : less, Math.abs(delta) / 230 * 1000);
+    }
+  };
+  await steer(1, 724, "w", "s"); await steer(0, 1730, "a", "d"); await hold("w", 900);
+  console.log("near stall at", (await canvas.evaluate(node => [node.dataset.x, node.dataset.y])).join(", "));
   await page.keyboard.press("e");
   await game.getByRole("button", { name: /Buy a seed packet/ }).click();
   await page.getByRole("button", { name: "Confirm preview" }).click();
