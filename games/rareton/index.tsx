@@ -385,7 +385,7 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
     };
   }, []);
   useEffect(() => { if (paused || menu) stop(); }, [paused, menu]);
-  useEffect(() => { music.current?.setPaused(paused); }, [paused]);
+  // Music keeps playing through runtime dialogs (like purchase confirmations); it only pauses with a hidden tab.
 
   // Keep the canvas backing store matched to its on-screen size.
   useEffect(() => {
