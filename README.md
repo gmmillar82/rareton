@@ -26,7 +26,7 @@ Requires Node.js 22+.
 npm ci
 npm run dev        # http://localhost:4173
 npm run build      # static output in games/rareton/.friendsdk/
-npm run build:pages   # same, with ?v=<commit> on asset links for GitHub Pages
+npm run build:pages   # hosted build: chunked Friend discovery + ?v=<commit> cache-busting
 npm run check      # FriendSDK game validation
 ```
 
@@ -44,6 +44,17 @@ npm run build:pages && node scripts/check-pages-build.mjs   # play the exact Pag
 ```
 
 Game rules, controls and gift format are in [games/rareton/README.md](games/rareton/README.md).
+
+## Hosted build and the RPC range limit
+
+In September 2026 the public Robinhood RPC began rejecting `eth_getLogs` ranges over
+10,000,000 blocks. FriendSDK v0.1.2 discovers an account's Friends with a single
+owner-filtered query from block 0, so wallets failed with *"Could not load this
+account's Friend transfers"*. `npm run build:pages` replaces the CLI-generated runtime
+with [`host/runtime.tsx`](host/runtime.tsx). It is the same `GameHost`, passing the
+documented `publicClient` option with a client that splits those owner-filtered queries
+into allowed ranges. It never scans the collection, and the runtime's fresh ownership
+check is unchanged. `npm run dev` uses the unmodified CLI runtime.
 
 ## License
 
