@@ -4,7 +4,7 @@
  * Everything here is local and simulated; nothing is minted or sent.
  */
 
-export type MeadowFlower = "daisy" | "tulip" | "bluebell" | "poppy" | "sunflower";
+export type MeadowFlower = "daisy" | "tulip" | "bluebell" | "poppy" | "sunflower" | "starbell";
 /** Garden flowers only grow from seed packets; their order matches game.json outcomes. */
 export type GardenFlower = "clover" | "rose" | "lily" | "orchid" | "goldensun" | "moonflower";
 export type FlowerId = MeadowFlower | GardenFlower;
@@ -35,6 +35,7 @@ export const FLOWERS: Readonly<Record<FlowerId, Readonly<{ name: string; color: 
   bluebell: { name: "Bluebell", color: "#8aa2de", head: [".##.", "####", "#..#"] },
   poppy: { name: "Poppy", color: "#d9573f", head: [".##.", "####", "####", ".##."] },
   sunflower: { name: "Sunflower", color: "#f0c24a", head: [".###.", "#...#", "#.#.#", "#...#", ".###."] },
+  starbell: { name: "Starbell", color: "#fff1a8", head: ["..#..", "#.#.#", ".###.", "#.#.#", "..#.."] },
   clover: { name: "Clover", color: "#7fb069", head: ["#.#", "###", ".#."] },
   rose: { name: "Rose", color: "#c9405a", head: [".##.", "#..#", "#.##", ".##."] },
   lily: { name: "Lily", color: "#fff3c4", head: ["#.#.#", ".###.", "..#.."] },
@@ -42,14 +43,14 @@ export const FLOWERS: Readonly<Record<FlowerId, Readonly<{ name: string; color: 
   goldensun: { name: "Golden sunflower", color: "#e8b923", head: ["#.#.#", ".###.", "##.##", ".###.", "#.#.#"] },
   moonflower: { name: "Moonflower", color: "#cfd9ff", head: [".###", "##..", "##..", ".###"] },
 };
-export const MEADOW_IDS: readonly MeadowFlower[] = ["daisy", "tulip", "bluebell", "poppy", "sunflower"];
+export const MEADOW_IDS: readonly MeadowFlower[] = ["daisy", "tulip", "bluebell", "poppy", "sunflower", "starbell"];
 export const GARDEN_IDS: readonly GardenFlower[] = ["clover", "rose", "lily", "orchid", "goldensun", "moonflower"];
 export const FLOWER_IDS: readonly FlowerId[] = [...MEADOW_IDS, ...GARDEN_IDS];
 export const isGarden = (flower: FlowerId): flower is GardenFlower => (GARDEN_IDS as readonly string[]).includes(flower);
 /** SDK outcome IDs start at one. */
 export const outcomeOf = (flower: GardenFlower) => GARDEN_IDS.indexOf(flower) + 1;
 export const EMPTY_INVENTORY: Inventory = {
-  daisy: 0, tulip: 0, bluebell: 0, poppy: 0, sunflower: 0,
+  daisy: 0, tulip: 0, bluebell: 0, poppy: 0, sunflower: 0, starbell: 0,
   clover: 0, rose: 0, lily: 0, orchid: 0, goldensun: 0, moonflower: 0, bun: 0,
 };
 

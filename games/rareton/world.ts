@@ -1,7 +1,8 @@
 /** Rareton's map, collision and pre-rendered scenery. World units are canvas pixels at zoom 1. */
 import { FLOWERS, type FlowerId } from "./gifts";
 
-export const WORLD = { width: 1920, height: 1280 } as const;
+/** The village spans x 0–1920; Whispering Woods extends west into negative x. */
+export const WORLD = { x: -1000, width: 2920, height: 1280 } as const;
 export const SPAWN = { x: 960, y: 800 } as const;
 export const RADIUS = 14;
 export type Point = { x: number; y: number };
@@ -33,9 +34,43 @@ export const STALL = { x: 1730, y: 520 };
 export const PLOT_SLOTS: Point[] = Array.from({ length: 8 }, (_, i) => ({ x: PLOT.x + 30 + (i % 4) * 50, y: PLOT.y + 38 + Math.floor(i / 4) * 40 }));
 export const LAMPS: Point[] = [{ x: 840, y: 570 }, { x: 1090, y: 812 }, { x: 830, y: 812 }];
 
+/** Whispering Woods: a winding path from the village road to a glade of standing stones, and Fern's hut. */
+export const GLADE = { x: -620, y: 390, rx: 210, ry: 140 };
+export const WOODS_PATHS: Point[][] = [
+  [{ x: 130, y: 680 }, { x: -120, y: 680 }, { x: -280, y: 610 }, { x: -430, y: 500 }, { x: -560, y: 430 }],
+  [{ x: -150, y: 690 }, { x: -330, y: 820 }, { x: -560, y: 960 }, { x: -735, y: 1000 }],
+];
+export const HUT: Box = { x: -820, y: 880, width: 170, height: 95 };
+export const SIGNPOST = { x: 90, y: 612 };
+/** A ginger cat naps on the green cottage's doorstep. */
+export const CAT = { x: 1388, y: 978 };
+export const STONES: Point[] = [0, 1, 2, 3, 4].map(i => {
+  const angle = -Math.PI / 2 + (i - 2) * 0.95 + (i > 2 ? 0.9 : 0);
+  return { x: Math.round(GLADE.x + Math.cos(angle) * 150), y: Math.round(GLADE.y + Math.sin(angle) * 95) };
+});
+
+function segmentDistance(p: Point, a: Point, b: Point) {
+  const dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+const nearPath = (p: Point, margin: number) => WOODS_PATHS.some(path => path.slice(1).some((b, i) => segmentDistance(p, path[i], b) < margin));
+
 const border: Point[] = [];
-for (let x = 60; x < WORLD.width; x += 130) border.push({ x, y: 70 }, { x: x + 40, y: 1262 });
-for (let y = 200; y < WORLD.height - 100; y += 140) border.push({ x: 42, y }, { x: 1880, y: y + 50 });
+for (let x = WORLD.x + 60; x < WORLD.x + WORLD.width; x += 130) border.push({ x, y: 70 }, { x: x + 40, y: 1262 });
+for (let y = 200; y < WORLD.height - 100; y += 140) border.push({ x: WORLD.x + 42, y }, { x: 42, y }, { x: 1880, y: y + 50 });
+
+/** Dense woodland, placed deterministically around the paths, glade and hut. */
+export const WOOD_TREES: Point[] = [];
+{
+  let seed = 11;
+  const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; };
+  for (let y = 150; y < 1220; y += 105) for (let x = WORLD.x + 120; x < -30; x += 115) {
+    const p = { x: Math.round(x + (rand() - 0.5) * 70), y: Math.round(y + (rand() - 0.5) * 60) };
+    const inGlade = ((p.x - GLADE.x) / (GLADE.rx + 40)) ** 2 + ((p.y - GLADE.y) / (GLADE.ry + 50)) ** 2 < 1;
+    const byHut = p.x > HUT.x - 90 && p.x < HUT.x + HUT.width + 90 && p.y > HUT.y - 60 && p.y < HUT.y + HUT.height + 150;
+    if (!inGlade && !byHut && !nearPath(p, 95) && rand() < 0.8) WOOD_TREES.push(p);
+  }
+}
 export const TREES: Point[] = [...border,
   { x: 180, y: 300 }, { x: 620, y: 250 }, { x: 700, y: 470 }, { x: 1250, y: 300 }, { x: 1290, y: 520 },
   { x: 160, y: 780 }, { x: 1200, y: 1110 }, { x: 1460, y: 1160 }, { x: 1760, y: 1140 }, { x: 1780, y: 790 },
@@ -44,7 +79,11 @@ export const TREES: Point[] = [...border,
 
 export const OBSTACLES: Box[] = [
   ...Object.values(BUILDINGS),
-  ...TREES.map(tree => ({ x: tree.x - 16, y: tree.y - 14, width: 32, height: 22 })),
+  ...[...TREES, ...WOOD_TREES].map(tree => ({ x: tree.x - 16, y: tree.y - 14, width: 32, height: 22 })),
+  HUT,
+  ...STONES.map(stone => ({ x: stone.x - 14, y: stone.y - 10, width: 28, height: 14 })),
+  { x: SIGNPOST.x - 6, y: SIGNPOST.y - 8, width: 12, height: 10 },
+  { x: CAT.x - 16, y: CAT.y - 8, width: 34, height: 10 },
   { x: POND.x - POND.rx + 20, y: POND.y - POND.ry + 15, width: POND.rx * 2 - 40, height: POND.ry * 2 - 30 },
   { x: POND.x - POND.rx + 50, y: POND.y - POND.ry, width: POND.rx * 2 - 100, height: POND.ry * 2 },
   { x: WELL.x - 40, y: WELL.y - 35, width: 80, height: 40 },
@@ -59,7 +98,7 @@ export const clamp = (value: number, minimum: number, maximum: number) => Math.m
 export const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 
 export function walkable(p: Point, radius = RADIUS) {
-  if (p.x < 70 || p.x > WORLD.width - 70 || p.y < 110 || p.y > WORLD.height - 50) return false;
+  if (p.x < WORLD.x + 70 || p.x > WORLD.x + WORLD.width - 70 || p.y < 110 || p.y > WORLD.height - 50) return false;
   return !OBSTACLES.some(box => distance(p, { x: clamp(p.x, box.x, box.x + box.width), y: clamp(p.y, box.y, box.y + box.height) }) < radius);
 }
 
@@ -88,6 +127,11 @@ export function createFlowerSpots(): FlowerSpot[] {
     { x: 610, y: 1180, flower: "bluebell", bloomAt: 0 }, { x: 1300, y: 1010, flower: "tulip", bloomAt: 0 },
     { x: 1580, y: 1050, flower: "poppy", bloomAt: 0 }, { x: 540, y: 560, flower: "daisy", bloomAt: 0 },
   );
+  // Starbells grow inside the stone circle and only open after dark.
+  for (let i = 0; i < 5; i++) {
+    const angle = (i / 5) * Math.PI * 2;
+    spots.push({ x: Math.round(GLADE.x + Math.cos(angle) * 70), y: Math.round(GLADE.y + Math.sin(angle) * 42), flower: "starbell", bloomAt: 0 });
+  }
   return spots;
 }
 
@@ -119,13 +163,17 @@ export function paintGround(): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = WORLD.width; canvas.height = WORLD.height;
   const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = GRASS; ctx.fillRect(0, 0, WORLD.width, WORLD.height);
+  ctx.translate(-WORLD.x, 0);
+  ctx.fillStyle = GRASS; ctx.fillRect(WORLD.x, 0, WORLD.width, WORLD.height);
+  // Woods floor: deeper, mossier grass west of the village.
+  ctx.fillStyle = "#b3c28e"; ctx.fillRect(WORLD.x, 0, 20 - WORLD.x, WORLD.height);
+  ctx.fillStyle = "#c1cd9c"; ctx.fillRect(20, 0, 40, WORLD.height);
   ctx.fillStyle = MEADOW;
   const m = MEADOW_AREA;
   ctx.fillRect(m.x + 20, m.y, m.width - 40, m.height); ctx.fillRect(m.x, m.y + 20, m.width, m.height - 40);
   const rand = random(7);
   for (let i = 0; i < 900; i++) {
-    const x = q(rand() * WORLD.width), y = q(rand() * WORLD.height);
+    const x = q(WORLD.x + rand() * WORLD.width), y = q(rand() * WORLD.height);
     ctx.fillStyle = rand() < 0.7 ? GRASS_DARK : GRASS_LIGHT;
     ctx.fillRect(x, y, 5, 5); if (rand() < 0.5) ctx.fillRect(x + 5, y - 5, 5, 5);
   }
@@ -148,6 +196,29 @@ export function paintGround(): HTMLCanvasElement {
     const p = paths[Math.floor(rand() * 2)];
     ctx.fillRect(q(p.x + rand() * p.width), q(p.y + rand() * p.height), 5, 5);
   }
+  // Woods: glade clearing, winding dirt paths, moss and mushrooms.
+  ellipse(ctx, GLADE.x, GLADE.y, GLADE.rx, GLADE.ry, "#c9d4a0");
+  ellipse(ctx, GLADE.x, GLADE.y, GLADE.rx - 60, GLADE.ry - 40, "#d3dcaa");
+  for (const [edge, fill, size] of [[SAND_EDGE, 0, 80], ["#c8b389", 1, 66]] as const) {
+    ctx.fillStyle = edge;
+    for (const path of WOODS_PATHS) path.slice(1).forEach((b, i) => {
+      const a = path[i], steps = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 10);
+      for (let step = 0; step <= steps; step++) {
+        const x = q(a.x + ((b.x - a.x) * step) / steps), y = q(a.y + ((b.y - a.y) * step) / steps);
+        ctx.fillRect(x - size / 2, y - size / 2 + fill * 2, size, size - fill * 4);
+      }
+    });
+  }
+  const woods = random(23);
+  for (let i = 0; i < 70; i++) {
+    const x = q(WORLD.x + 80 + woods() * 900), y = q(140 + woods() * 1080);
+    if (nearPath({ x, y }, 50)) continue;
+    ctx.fillStyle = "#e9e1cc"; ctx.fillRect(x + 3, y - 6, 4, 8);
+    ctx.fillStyle = woods() < 0.7 ? "#c2493d" : "#b48a4f"; ctx.fillRect(x - 2, y - 11, 14, 6); ctx.fillRect(x, y - 13, 10, 2);
+    ctx.fillStyle = "#fbf7ee"; ctx.fillRect(x + 1, y - 10, 2, 2); ctx.fillRect(x + 7, y - 9, 2, 2);
+  }
+  ctx.fillStyle = "#9fb07c";
+  for (let i = 0; i < 260; i++) ctx.fillRect(q(WORLD.x + woods() * 1000), q(woods() * WORLD.height), 10, 5);
   // Pond with ripples, lily pads and reeds.
   ellipse(ctx, POND.x, POND.y, POND.rx + 5, POND.ry + 5, INK);
   ellipse(ctx, POND.x, POND.y, POND.rx, POND.ry, WATER);
@@ -218,8 +289,26 @@ function building(b: Building): Scenery {
   return { canvas, x: b.x - pad, y: b.y - top, depth: b.y + b.height };
 }
 
+const treeSprites = new Map<number, HTMLCanvasElement>();
 function tree(p: Point, variant: number): Scenery {
-  const canvas = sprite(130, 160, ctx => {
+  let canvas = treeSprites.get(variant);
+  if (!canvas) treeSprites.set(variant, canvas = variant === 2 ? pine() : broadleaf(variant));
+  return { canvas, x: p.x - 65, y: p.y - 150, depth: p.y };
+}
+
+function pine() {
+  return sprite(130, 160, ctx => {
+    blob(ctx, [[57, 118, 16, 34]], WOOD);
+    const tiers: [number, number, number, number][] = [];
+    for (let i = 0; i < 6; i++) { const w = 30 + i * 14; tiers.push([65 - w / 2, 14 + i * 18, w, 20]); }
+    blob(ctx, tiers, "#3f5e4a");
+    ctx.fillStyle = "#56775c";
+    tiers.forEach(([x, y, w], i) => { if (i % 2 === 0) ctx.fillRect(x + 6, y + 4, w / 3, 6); });
+  });
+}
+
+function broadleaf(variant: number) {
+  return sprite(130, 160, ctx => {
     blob(ctx, [[56, 110, 18, 42]], WOOD);
     const canopy: [number, number, number, number][] = variant
       ? [[20, 40, 90, 60], [35, 20, 60, 30], [10, 60, 110, 40], [30, 95, 70, 15]]
@@ -228,7 +317,44 @@ function tree(p: Point, variant: number): Scenery {
     ctx.fillStyle = LEAF_LIGHT;
     ctx.fillRect(40, variant ? 30 : 22, 30, 10); ctx.fillRect(30, 55, 25, 10); ctx.fillRect(70, 70, 20, 10);
   });
-  return { canvas, x: p.x - 65, y: p.y - 150, depth: p.y };
+}
+
+function hut(): Scenery {
+  const b = HUT, pad = 30, top = 70, wallH = 60;
+  const canvas = sprite(b.width + pad * 2, top + b.height + 10, ctx => {
+    const left = pad, bottom = top + b.height, wallTop = bottom - wallH, roofTop = top - 30;
+    blob(ctx, [[left + 10, wallTop, b.width - 20, wallH]], "#a98b64");
+    ctx.fillStyle = "#94774f"; for (let y = wallTop + 10; y < bottom; y += 14) ctx.fillRect(left + 10, y, b.width - 20, 3);
+    blob(ctx, [[left + b.width - 55, roofTop - 18, 20, 36]], STONE);
+    const bands: [number, number, number, number][] = [];
+    for (let y = roofTop; y < wallTop; y += 10) { const t = (y - roofTop) / (wallTop - roofTop), inset = q((1 - t) * 45 - 12); bands.push([left + inset, y, b.width - inset * 2, 10]); }
+    blob(ctx, bands, "#6f8a4e");
+    ctx.fillStyle = "#86a262"; bands.forEach(([x, y, w], i) => { if (i % 2) ctx.fillRect(x + 8, y + 3, w - 16, 4); });
+    const cx = left + b.width / 2;
+    blob(ctx, [[cx - 17, bottom - 46, 34, 46]], "#6b4f33", 3);
+    blob(ctx, [[left + 26, bottom - 44, 26, 22]], WINDOW, 3);
+  });
+  return { canvas, x: b.x - pad, y: b.y - top, depth: b.y + b.height };
+}
+
+function stone(p: Point): Scenery {
+  const canvas = sprite(50, 70, ctx => {
+    blob(ctx, [[12, 12, 26, 50], [16, 6, 18, 8]], "#a7a394", 3);
+    ctx.fillStyle = "#8f8b7d"; ctx.fillRect(18, 24, 12, 3); ctx.fillRect(16, 40, 8, 3);
+    ctx.fillStyle = "#7f9c6a"; ctx.fillRect(12, 54, 10, 8);
+  });
+  return { canvas, x: p.x - 25, y: p.y - 62, depth: p.y };
+}
+
+function signpost(): Scenery {
+  const canvas = sprite(170, 110, ctx => {
+    blob(ctx, [[82, 30, 6, 72]], WOOD, 3);
+    blob(ctx, [[10, 18, 150, 26]], "#c9a36b", 3);
+    ctx.fillStyle = INK; ctx.fillRect(4, 24, 6, 14);
+    ctx.font = "bold 13px ui-monospace, monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("◀ WHISPERING WOODS", 85, 32);
+  });
+  return { canvas, x: SIGNPOST.x - 85, y: SIGNPOST.y - 102, depth: SIGNPOST.y };
 }
 
 function well(): Scenery {
@@ -298,7 +424,9 @@ function lamp(p: Point): Scenery {
 export function paintScenery(): Scenery[] {
   return [
     ...Object.values(BUILDINGS).map(building),
-    ...TREES.map((p, index) => tree(p, index % 2)),
+    ...TREES.map((p, index) => tree(p, p.x < 0 ? 2 : index % 2)),
+    ...WOOD_TREES.map((p, index) => tree(p, index % 3 ? 2 : index % 2)),
+    hut(), signpost(), ...STONES.map(stone),
     well(), board(), mailbox(), stall(), ...LAMPS.map(lamp),
   ];
 }
@@ -308,8 +436,8 @@ export const WINDOWS: Box[] = Object.values(BUILDINGS).flatMap(b =>
   [b.x + b.width / 4 - 17, b.x + (b.width * 3) / 4 - 17].map(x => ({ x, y: b.y + b.height - 52, width: 34, height: 28 })));
 
 /** Where fireflies gather at night: the meadow, the pond and the garden. */
-export const FIREFLIES: Point[] = Array.from({ length: 34 }, (_, i) => {
-  const areas = [{ x: 1400, y: 200, w: 420, h: 330 }, { x: 240, y: 880, w: 400, h: 300 }, { x: 1100, y: 850, w: 700, h: 300 }];
+export const FIREFLIES: Point[] = Array.from({ length: 44 }, (_, i) => {
+  const areas = [{ x: 1400, y: 200, w: 420, h: 330 }, { x: 240, y: 880, w: 400, h: 300 }, { x: 1100, y: 850, w: 700, h: 300 }, { x: -800, y: 280, w: 360, h: 220 }];
   const area = areas[i % areas.length], a = (i * 7919) % 1000 / 1000, b = (i * 104729) % 1000 / 1000;
   return { x: area.x + a * area.w, y: area.y + b * area.h };
 });

@@ -3,7 +3,7 @@
 import { writeFile } from "node:fs/promises";
 import { createFriendReader } from "@rarefriends/friendsdk/sprites";
 
-const ids = [21n, 77n, 3n, 150n];
+const ids = [21n, 77n, 3n, 150n, 88n];
 const reader = createFriendReader();
 const lines = [];
 for (const id of ids) {

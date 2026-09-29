@@ -50,4 +50,13 @@ export const VILLAGERS: readonly Villager[] = [
     ],
     gift: { flower: "poppy" }, giftNote: "Old Moss gave you a poppy.",
   },
+  {
+    tokenId: 88n, name: "Fern", home: { x: -600, y: 1050 },
+    lines: [
+      "Oh! A visitor. Not many find their way through the Whispering Woods.",
+      "When the lamps come on in the village, the starbells open in the stone circle. Only then.",
+      "Take this pressed starbell. It still remembers the moonlight.",
+    ],
+    gift: { flower: "starbell" }, giftNote: "Fern gave you a pressed starbell.",
+  },
 ];

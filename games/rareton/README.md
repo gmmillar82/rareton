@@ -37,6 +37,17 @@ follows the system setting). Input pauses whenever the runtime pauses the game o
   **Stamp & send**. Every gift needs a 0.1 RF stamp. Garden flowers in a bouquet
   carry their RF value to the recipient. The gift is listed under *Sent gifts*.
 - **Mailbox** holds gifts from villagers (also simulated story items).
+- **Whispering Woods** lie west of the village, through the trees past the signpost.
+  A winding path leads to a glade of standing stones and Fern's hut. **Starbells**
+  grow in the stone circle and can only be picked at night. Fern gives you a pressed one.
+- **Village life**: ducks paddle on the pond (and sleep at night), butterflies drift over
+  the meadow by day, birds hop on the paths and flutter off when you get close, and a
+  ginger cat naps on the green cottage's doorstep. You can pet her.
+- **Weather**: every few minutes a gentle rain shower passes, leaving puddles on the
+  paths. Bunting is strung from the square's lamps to the well. Toggle weather in Settings.
+- **Music**: an original 8-bit soundtrack composed for Rareton and synthesised live with
+  Web Audio (no recordings or third-party music). A cheerful day tune crossfades into a
+  gentle night tune. Off by default. Turn it on in Settings.
 - **Day and night**: a village day lasts four minutes. At night the lamps glow, windows
   light up and fireflies come out over the meadow, pond and cottages. You can turn the
   cycle off in Settings. Reduced motion keeps fireflies still.

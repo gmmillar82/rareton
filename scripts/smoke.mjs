@@ -12,6 +12,10 @@ await testGame("./games/rareton", {
     await canvas.waitFor();
     await game.getByRole("button", { name: "Settings" }).click();
     await game.getByRole("button", { name: "Sound: off" }).click();
+    await game.getByRole("button", { name: "Music: off" }).click();
+    await game.getByRole("button", { name: "Music: on" }).waitFor();
+    await page.waitForTimeout(500);
+    await game.getByRole("button", { name: "Music: on" }).click();
     await game.getByRole("button", { name: /close/i }).first().click();
     await canvas.focus();
     await hold(page, "a", 350); await hold(page, "w", 2600); await hold(page, "d", 350);
@@ -58,6 +62,20 @@ await testGame("./games/rareton", {
     await game.getByRole("heading", { name: /Garden flowers/ }).waitFor();
     await page.screenshot({ path: `./artifacts/satchel-${width}.png` });
     await game.getByRole("button", { name: /close/i }).first().click();
+
+    // Whispering Woods: follow the road west through the gap in the trees.
+    await canvas.focus();
+    // Steer to the clear row just below the well, then walk west along it.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const y = await canvas.evaluate(node => Number(node.dataset.y)), dy = 724 - y;
+      if (Math.abs(dy) < 4) break;
+      await hold(page, dy > 0 ? "s" : "w", Math.abs(dy) / 230 * 1000);
+    }
+    await hold(page, "a", 9000);
+    const woods = await canvas.evaluate(node => [Number(node.dataset.x), Number(node.dataset.y)]);
+    console.log("woods at", woods.join(", "));
+    if (!(woods[0] < 0)) throw new Error(`Expected to reach the woods (x < 0), got ${woods}`);
+    await page.screenshot({ path: `./artifacts/woods-${width}.png` });
   },
 });
 console.log("smoke ok", width);
