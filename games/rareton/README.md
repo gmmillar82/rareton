@@ -46,8 +46,10 @@ follows the system setting). Input pauses whenever the runtime pauses the game o
 - **Weather**: every few minutes a gentle rain shower passes, leaving puddles on the
   paths. Bunting is strung from the square's lamps to the well. Toggle weather in Settings.
 - **Music**: an original 8-bit soundtrack composed for Rareton and synthesised live with
-  Web Audio (no recordings or third-party music). A cheerful day tune crossfades into a
-  gentle night tune. Off by default. Turn it on in Settings.
+  Web Audio (no recordings or third-party music): a wistful 3/4 waltz by day that
+  crossfades into a music-box lullaby at night. Off by default. Turn it on in Settings.
+- **Night-time**: villagers go home at dusk. Knock on their doors (E or tap) to chat
+  through the door. They have different things to say at night. The post office stays open.
 - **Day and night**: a village day lasts four minutes. At night the lamps glow, windows
   light up and fireflies come out over the meadow, pond and cottages. You can turn the
   cycle off in Settings. Reduced motion keeps fireflies still.

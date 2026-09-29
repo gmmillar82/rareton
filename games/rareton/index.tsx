@@ -10,7 +10,7 @@ import { formatGameAmount } from "@rarefriends/friendsdk/ui";
 import "@rarefriends/friendsdk/frame.css";
 import "./style.css";
 import {
-  BUILDINGS, BOARD, CHIMNEYS, FIREFLIES, INK, LAMPS, MAILBOX, WINDOWS, CAT, PLOT, PLOT_SLOTS, POND, SIGNPOST, SPAWN, STALL, WELL, WORLD, advance, clamp, createFlowerSpots, distance,
+  BUILDINGS, BOARD, CHIMNEYS, FIREFLIES, INK, LAMPS, MAILBOX, WINDOWS, CAT, DOORS, HUT, PLOT, PLOT_SLOTS, POND, SIGNPOST, SPAWN, STALL, WELL, WORLD, advance, clamp, createFlowerSpots, distance,
   paintFlower, paintGround, paintScenery, walkable, type Box, type FlowerSpot, type Point, type Scenery,
 } from "./world";
 import {
@@ -53,9 +53,9 @@ type Menu =
   | { kind: "garden"; bloom?: GardenFlower }
   | { kind: "bakery"; gave: boolean }
   | { kind: "well"; note?: string }
-  | { kind: "chat"; npc: number; line: number; note?: string }
+  | { kind: "chat"; npc: number; line: number; note?: string; night?: boolean }
   | null;
-type Npc = { index: number; sprites: GenerationSprites; x: number; y: number; tx: number; ty: number; wait: number; facing: SpriteFacing; side: "left" | "right"; walking: boolean };
+type Npc = { index: number; sprites: GenerationSprites; x: number; y: number; tx: number; ty: number; wait: number; facing: SpriteFacing; side: "left" | "right"; walking: boolean; alpha: number };
 
 let worldArt: { ground: HTMLCanvasElement; scenery: Scenery[] } | null = null;
 const getWorldArt = () => (worldArt ??= { ground: paintGround(), scenery: paintScenery() });
@@ -265,7 +265,7 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
   const [toast, setToast] = useState(""), [muted, setMuted] = useState(true), [reducedMotion, setReducedMotion] = useState(false);
   const [snapshot, setSnapshot] = useState<GameSnapshot | null>(null), [busy, setBusy] = useState(false), [actionError, setActionError] = useState("");
   const [gifted, setGifted] = useState<Record<GardenFlower, number>>({ clover: 0, rose: 0, lily: 0, orchid: 0, goldensun: 0, moonflower: 0 });
-  const [stamps, setStamps] = useState(0), [dayNight, setDayNight] = useState(true), [weather, setWeather] = useState(true), [musicOn, setMusicOn] = useState(false), [clock, setClock] = useState("Morning");
+  const [stamps, setStamps] = useState(0), [dayNight, setDayNight] = useState(true), [weather, setWeather] = useState(true), [musicOn, setMusicOn] = useState(false), [isNight, setIsNight] = useState(false), [clock, setClock] = useState("Morning");
   const locked = useRef(false), epoch = useRef(0), garden = useRef<{ blooms: FlowerId[]; sprouts: number }>({ blooms: [], sprouts: 0 });
 
   const sound = useRef<FriendSoundKit | null>(null), toastTimer = useRef(0), music = useRef<Music | null>(null);
@@ -339,8 +339,8 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
       return;
     }
     stop();
-    if (type === "npc") {
-      const npc = Number(index), villager = VILLAGERS[npc];
+    if (type === "npc" || type === "door") {
+      const npc = Number(index), villager = VILLAGERS[npc], night = type === "door";
       let note: string | undefined;
       if (!talked.current.has(npc)) {
         talked.current.add(npc);
@@ -351,7 +351,10 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
         }
         note = villager.giftNote;
       }
-      play("action-start"); setMenu({ kind: "chat", npc, line: 0, note });
+      if (night && villager.house === "bakery" && inventory.bun < MAX_BUNS) {
+        add("bun"); note = [note, "Bramble passes a warm bun through the door."].filter(Boolean).join(" ");
+      }
+      play("action-start"); setMenu({ kind: "chat", npc, line: 0, note, night });
     } else if (type === "bakery") {
       const gave = inventory.bun < MAX_BUNS;
       if (gave) { add("bun"); play("reward"); }
@@ -421,7 +424,7 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
   useEffect(() => {
     const surface = canvas.current, ctx = surface?.getContext("2d");
     if (!surface || !ctx) { setFailed(true); setStatus("This browser can't draw the village."); return; }
-    let cancelled = false, frame = 0, previous = 0, lastNear = "", lastClock = "", dayTime = DAY_MS * 0.05;
+    let cancelled = false, frame = 0, previous = 0, lastNear = "", lastClock = "", lastNight = false, dayTime = DAY_MS * 0.05;
     // Weather: an occasional 45-second shower, the first about a minute and a half in.
     let elapsed = 0, rainStart = -1, rainEnd = 0, nextRain = 90_000, rainLevel = 0, wetness = 0;
     const birds = createBirds();
@@ -436,7 +439,7 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
 
     for (const [key, sprites] of Object.entries(VILLAGER_SPRITES)) {
       const index = Number(key), home = VILLAGERS[index].home;
-      npcs.push({ index, sprites, x: home.x, y: home.y, tx: home.x, ty: home.y, wait: 1 + index, facing: "down", side: "right", walking: false });
+      npcs.push({ index, sprites, x: home.x, y: home.y, tx: home.x, ty: home.y, wait: 1 + index, facing: "down", side: "right", walking: false, alpha: 1 });
     }
 
     void Promise.all([reader.read(friendId), client.read()]).then(([sprites, snapshot]) => {
@@ -461,6 +464,8 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
         const still = state.reducedMotion, t = now / 1000, daylife = dark < 0.4 && rainLevel < 0.5;
         const label = [state.dayNight ? timeOfDay(phase) : "", rainLevel > 0.5 ? "Rain" : ""].filter(Boolean).join(" · ");
         if (label !== lastClock) { lastClock = label; setClock(label); }
+        const nightNow = dark > 0.6;
+        if (nightNow !== lastNight) { lastNight = nightNow; setIsNight(nightNow); }
         music.current?.setNight(dark > 0.5);
         const p = position.current, before = { ...p };
         const { width, height, zoom, dpr } = view.current, vw = width / zoom, vh = height / zoom;
@@ -487,7 +492,15 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
         for (const npc of npcs) {
           const toPlayer = distance(npc, p);
           npc.walking = false;
-          if (!active) continue;
+          // Villagers head indoors at dusk and come back out at dawn.
+          if (!state.paused) {
+            if (dark > 0.6) npc.alpha = Math.max(0, npc.alpha - dt / 1.5);
+            else if (npc.alpha < 1) {
+              if (npc.alpha === 0) { const home = VILLAGERS[npc.index].home; Object.assign(npc, { x: home.x, y: home.y, tx: home.x, ty: home.y, wait: 2 }); }
+              npc.alpha = Math.min(1, npc.alpha + dt / 1.5);
+            }
+          }
+          if (!active || npc.alpha < 1) continue;
           if (toPlayer < 120) {
             const dx = p.x - npc.x, dy = p.y - npc.y;
             npc.facing = Math.abs(dx) >= Math.abs(dy) ? (dx < 0 ? "left" : "right") : dy < 0 ? "up" : "down";
@@ -516,11 +529,18 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
         const clock = performance.now();
         // Starbells only open at night; everything else is open once it has regrown.
         const open = (spot: FlowerSpot) => spot.bloomAt <= clock && (spot.flower !== "starbell" || dark > 0.5);
-        const list: Target[] = [...FIXED_TARGETS];
+        const indoors = npcs.filter(npc => npc.alpha === 0);
+        const list: Target[] = FIXED_TARGETS.filter(target => !(target.id === "bakery" && indoors.some(npc => VILLAGERS[npc.index].house === "bakery")));
+        for (const npc of indoors) {
+          const villager = VILLAGERS[npc.index];
+          if (villager.house === "post") continue; // the post office stays open all night
+          const door = DOORS[villager.house], building = villager.house === "hut" ? HUT : BUILDINGS[villager.house];
+          list.push({ id: `door:${npc.index}`, x: door.x, y: door.y, reach: 70, label: `Knock on ${villager.name}'s door`, lift: 110, hit: doorArea(building) });
+        }
         flowers.current.forEach((spot, index) => {
           if (open(spot)) list.push({ id: `flower:${index}`, x: spot.x, y: spot.y, reach: 55, label: `Pick the ${FLOWERS[spot.flower].name.toLowerCase()}`, lift: 45 });
         });
-        for (const npc of npcs) list.push({ id: `npc:${npc.index}`, x: npc.x, y: npc.y, reach: 90, label: `Talk to ${VILLAGERS[npc.index].name}`, lift: 100 });
+        for (const npc of npcs) if (npc.alpha === 1) list.push({ id: `npc:${npc.index}`, x: npc.x, y: npc.y, reach: 90, label: `Talk to ${VILLAGERS[npc.index].name}`, lift: 100 });
         targets.current = list;
 
         if (active && pending.current) {
@@ -578,9 +598,10 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
         }
         const pose = (walking: boolean) => state.reducedMotion ? 0 : Math.floor(now / (walking ? 110 : 190)) % 8;
         for (const npc of npcs) {
-          if (!visible(npc.x - 45, npc.y - 80, 90, 90)) continue;
+          if (npc.alpha === 0 || !visible(npc.x - 45, npc.y - 80, 90, 90)) continue;
           const rows = spriteFrame(npc.sprites, npc.facing, npc.walking, pose(npc.walking), npc.side).frame.rows;
-          layers.push({ depth: npc.y, draw: () => paintFriend(ctx, rows, npc.x, npc.y) });
+          const alpha = npc.alpha;
+          layers.push({ depth: npc.y, draw: () => { ctx.globalAlpha = alpha; paintFriend(ctx, rows, npc.x, npc.y); ctx.globalAlpha = 1; } });
         }
         const moving = distance(before, p) > 0.05;
         const mine = spriteFrame(sprites, facing, moving, pose(moving), side).frame.rows;
@@ -634,7 +655,7 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
             ctx.fillStyle = `rgba(240, 255, 170, ${alpha.toFixed(3)})`; ctx.fillRect(Math.round(x) - 2, Math.round(y) - 2, 4, 4);
           });
         }
-        for (const npc of npcs) if (distance(npc, p) < 170) tag(ctx, VILLAGERS[npc.index].name, npc.x, npc.y - 112);
+        for (const npc of npcs) if (npc.alpha === 1 && distance(npc, p) < 170) tag(ctx, VILLAGERS[npc.index].name, npc.x, npc.y - 112);
         const focus = nearRef.current;
         if (focus && active) {
           const bob = state.reducedMotion ? 0 : Math.round(Math.sin(now / 220) * 3);
@@ -695,7 +716,7 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
       {failed && <button type="button" disabled={paused} onClick={() => setRevision(value => value + 1)}>Try again</button>}
     </div>}
     {menu && <GameMenu title={title} onClose={close}>
-      {menu.kind === "post" ? <PostOffice friendId={friendId} inventory={bag} paused={paused || busy} balance={balance} definition={definition} onDone={close}
+      {menu.kind === "post" ? <>{isNight && <p className="rt-note">Postmaster Quill is sorting letters by lamplight. “Night post is the best post.”</p>}<PostOffice friendId={friendId} inventory={bag} paused={paused || busy} balance={balance} definition={definition} onDone={close}
         onSend={(gift, spend) => {
           const entries = Object.entries(spend) as [FlowerId | "bun", number][];
           setInventory(current => {
@@ -709,7 +730,7 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
             return next;
           });
           setStamps(count => count + 1); setSent(list => [gift, ...list]); play("reward");
-        }} />
+        }} /></>
       : menu.kind === "stall" ? <>
         <p className="rt-banner"><strong>Simulated RF:</strong> packets, prices and sales use the SDK's preview ledger. No real RF is spent and no wallet prompt appears.</p>
         <p>Balance <strong>{rf(balance)}</strong> · {snapshot?.consumables.toString() ?? "0"} seed packet{snapshot?.consumables === 1n ? "" : "s"} ready to plant</p>
@@ -751,11 +772,11 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
       : menu.kind === "chat" ? <div className="rt-chat">
         {villagerArt[menu.npc] && <PixelArt rows={spriteFrame(villagerArt[menu.npc], "down", false, 0).frame.rows} scale={5} halo label={VILLAGERS[menu.npc].name} />}
         <div>
-          <small>Friend #{VILLAGERS[menu.npc].tokenId.toString()}{villagerArt[menu.npc] ? ` · ${villagerArt[menu.npc].familyName}` : ""}</small>
-          <p className="rt-quote">“{VILLAGERS[menu.npc].lines[menu.line]}”</p>
+          <small>Friend #{VILLAGERS[menu.npc].tokenId.toString()}{villagerArt[menu.npc] ? ` · ${villagerArt[menu.npc].familyName}` : ""}{menu.night ? " · talking through the door" : ""}</small>
+          <p className="rt-quote">“{(menu.night ? VILLAGERS[menu.npc].night : VILLAGERS[menu.npc].lines)[menu.line]}”</p>
           {menu.note && <p className="rt-note">{menu.note}</p>}
           <div className="rt-row">
-            <button type="button" disabled={paused} onClick={() => { play("select"); setMenu({ kind: "chat", npc: menu.npc, line: (menu.line + 1) % VILLAGERS[menu.npc].lines.length }); }}>Keep chatting</button>
+            <button type="button" disabled={paused} onClick={() => { play("select"); setMenu({ kind: "chat", npc: menu.npc, night: menu.night, line: (menu.line + 1) % (menu.night ? VILLAGERS[menu.npc].night : VILLAGERS[menu.npc].lines).length }); }}>Keep chatting</button>
             <button type="button" className="rt-primary" disabled={paused} onClick={close}>Goodbye</button>
           </div>
         </div>
@@ -816,7 +837,7 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
         <label className="rt-check"><input type="checkbox" checked={dayNight} onChange={event => setDayNight(event.target.checked)} /> Day and night (a village day lasts four minutes)</label>
         <label className="rt-check"><input type="checkbox" checked={weather} onChange={event => setWeather(event.target.checked)} /> Weather (occasional rain showers)</label>
         <p>Walk with WASD or arrow keys, or tap where to go. Press E, or tap a building, flower or villager, to interact.</p>
-        <p>Rareton's 8-bit music was composed for the game and is synthesised live in your browser: a cheerful day tune and a gentle night one.</p>
+        <p>Rareton's 8-bit music was composed for the game and is synthesised live in your browser: a wistful waltz by day and a music-box lullaby at night.</p>
         <p>Reduced motion keeps Friends and animals on still frames, and stops smoke, marker bobbing, firefly blinking, bunting sway and falling rain.</p>
         <p>Your wallet is only used to confirm you own your Friend. Rareton never asks for a signature or transaction. RF balances, seed packets, stamps and gifts are all simulated.</p>
       </>}

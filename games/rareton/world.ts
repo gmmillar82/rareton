@@ -42,6 +42,11 @@ export const WOODS_PATHS: Point[][] = [
 ];
 export const HUT: Box = { x: -820, y: 880, width: 170, height: 95 };
 export const SIGNPOST = { x: 90, y: 612 };
+/** Door positions, where villagers can be reached at night. */
+export const DOORS = {
+  bakery: { x: 380, y: 556 }, post: { x: 960, y: 326 },
+  cottageB: { x: 1610, y: 1026 }, cottageC: { x: 785, y: 1021 }, hut: { x: -735, y: 1001 },
+} as const;
 /** A ginger cat naps on the green cottage's doorstep. */
 export const CAT = { x: 1388, y: 978 };
 export const STONES: Point[] = [0, 1, 2, 3, 4].map(i => {
@@ -57,7 +62,10 @@ const nearPath = (p: Point, margin: number) => WOODS_PATHS.some(path => path.sli
 
 const border: Point[] = [];
 for (let x = WORLD.x + 60; x < WORLD.x + WORLD.width; x += 130) border.push({ x, y: 70 }, { x: x + 40, y: 1262 });
-for (let y = 200; y < WORLD.height - 100; y += 140) border.push({ x: WORLD.x + 42, y }, { x: 42, y }, { x: 1880, y: y + 50 });
+for (let y = 200; y < WORLD.height - 100; y += 140) {
+  border.push({ x: WORLD.x + 42, y }, { x: 1880, y: y + 50 });
+  if (y !== 620) border.push({ x: 42, y }); // leave the signpost in the clear
+}
 
 /** Dense woodland, placed deterministically around the paths, glade and hut. */
 export const WOOD_TREES: Point[] = [];
