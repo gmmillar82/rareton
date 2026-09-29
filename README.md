@@ -2,7 +2,7 @@
 
 A cosy pixel village for Rare Friends. Walk your Friend around Rareton, chat
 with villagers, pick flowers and post 16 × 16 pixel-art gifts to any other Rare
-Friend by number. Built with [FriendSDK](https://github.com/spokesz/friendsdk) v0.1.2
+Friend by number. Built with [FriendSDK](https://github.com/spokesz/friendsdk) v0.1.3
 for the [Rare Friends Vibeathon](https://github.com/spokesz/rarefriends-vibeathon).
 
 **Play:** https://gmmillar82.github.io/rareton/
@@ -26,11 +26,11 @@ Requires Node.js 22+.
 npm ci
 npm run dev        # http://localhost:4173
 npm run build      # static output in games/rareton/.friendsdk/
-npm run build:pages   # hosted build: chunked Friend discovery + ?v=<commit> cache-busting
+npm run build:pages   # same, with ?v=<commit> on asset links for GitHub Pages
 npm run check      # FriendSDK game validation
 ```
 
-The FriendSDK v0.1.2 release archive is included (`rarefriends-friendsdk-0.1.2.tgz`)
+The FriendSDK v0.1.3 release archive is included (`rarefriends-friendsdk-0.1.3.tgz`)
 so `npm ci` works offline from the SDK repo.
 
 Automated checks (mock wallet, headless Chromium):
@@ -44,17 +44,6 @@ npm run build:pages && node scripts/check-pages-build.mjs   # play the exact Pag
 ```
 
 Game rules, controls and gift format are in [games/rareton/README.md](games/rareton/README.md).
-
-## Hosted build and the RPC range limit
-
-In September 2026 the public Robinhood RPC began rejecting `eth_getLogs` ranges over
-10,000,000 blocks. FriendSDK v0.1.2 discovers an account's Friends with a single
-owner-filtered query from block 0, so wallets failed with *"Could not load this
-account's Friend transfers"*. `npm run build:pages` replaces the CLI-generated runtime
-with [`host/runtime.tsx`](host/runtime.tsx). It is the same `GameHost`, passing the
-documented `publicClient` option with a client that splits those owner-filtered queries
-into allowed ranges. It never scans the collection, and the runtime's fresh ownership
-check is unchanged. `npm run dev` uses the unmodified CLI runtime.
 
 ## License
 

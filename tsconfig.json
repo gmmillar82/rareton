@@ -18,7 +18,6 @@
   "include": [
     "games/rareton/*.ts",
     "games/rareton/*.tsx",
-    "games/rareton/*.d.ts",
-    "host/*.tsx"
+    "games/rareton/*.d.ts"
   ]
 }
