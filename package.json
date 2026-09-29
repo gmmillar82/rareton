@@ -2,7 +2,7 @@
   "name": "rareton",
   "version": "0.1.0",
   "private": true,
-  "description": "Rareton - a cosy village walk for Rare Friends (FriendSDK v0.1.3)",
+  "description": "Rareton - a cosy village walk for Rare Friends (FriendSDK v0.1.4)",
   "type": "module",
   "license": "Apache-2.0",
   "scripts": {
@@ -12,7 +12,7 @@
     "build:pages": "friendsdk build games/rareton && node scripts/stamp-version.mjs games/rareton/.friendsdk $(git rev-parse --short HEAD)"
   },
   "dependencies": {
-    "@rarefriends/friendsdk": "file:rarefriends-friendsdk-0.1.3.tgz",
+    "@rarefriends/friendsdk": "file:rarefriends-friendsdk-0.1.4.tgz",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

@@ -2,7 +2,7 @@
 
 A cosy pixel village for Rare Friends. Walk your Friend around Rareton, chat
 with villagers, pick flowers and post 16 × 16 pixel-art gifts to any other Rare
-Friend by number. Built with [FriendSDK](https://github.com/spokesz/friendsdk) v0.1.3
+Friend by number. Built with [FriendSDK](https://github.com/spokesz/friendsdk) v0.1.4
 for the [Rare Friends Vibeathon](https://github.com/spokesz/rarefriends-vibeathon).
 
 **Play:** https://gmmillar82.github.io/rareton/
@@ -30,7 +30,7 @@ npm run build:pages   # same, with ?v=<commit> on asset links for GitHub Pages
 npm run check      # FriendSDK game validation
 ```
 
-The FriendSDK v0.1.3 release archive is included (`rarefriends-friendsdk-0.1.3.tgz`)
+The FriendSDK v0.1.4 release archive is included (`rarefriends-friendsdk-0.1.4.tgz`)
 so `npm ci` works offline from the SDK repo.
 
 Automated checks (mock wallet, headless Chromium):

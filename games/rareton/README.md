@@ -1,6 +1,6 @@
 # Rareton
 
-A cosy pixel village for Rare Friends, built with **FriendSDK v0.1.3**.
+A cosy pixel village for Rare Friends, built with **FriendSDK v0.1.4**.
 Walk your Friend around Rareton, chat with villagers, pick flowers, and post
 16 × 16 pixel-art gifts to any other Rare Friend by number.
 
