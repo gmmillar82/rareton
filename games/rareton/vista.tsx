@@ -83,6 +83,7 @@ function backdrop(H: number) {
   rect(ctx, 256, hy - 20, 5, 16, "#efe3c8"); poly(ctx, [[255, hy - 20], [258.5, hy - 24], [262, hy - 20]], "#b8614f");
   // Fields in one-point perspective: stripes converge on a vanishing point at the horizon.
   const vx = 160;
+  rect(ctx, 0, hy + 2, W, H - hy - 2, "#a6d263");
   const stripes = ["#b9d86a", "#9ccd5e", "#e5cf6c", "#a6d263", "#8fc45a", "#cfe07a"];
   for (let i = -14; i < 14; i++) {
     const x0 = vx + i * 34, x1 = vx + (i + 1) * 34;
@@ -186,10 +187,12 @@ function drawFarmer(ctx: Ctx, sprites: GenerationSprites, footX: number, footY: 
 }
 
 const CAT = ["#...#...", "##.##...", "#####...", "#k#k###.", "########", ".#######", ".#.#.#.#"];
+const mirror = (pattern: readonly string[]) => pattern.map(row => [...row].reverse().join(""));
 function drawCat(ctx: Ctx, x: number, y: number, t: number) {
   const hop = Math.abs(Math.sin(t * 14)) * 3, legs = Math.floor(t * 14) % 2;
-  rows(ctx, legs ? CAT : [...CAT.slice(0, 6), "#.#...#."], x, y - hop, 2, { "#": "#d9904a", k: INK });
-  rows(ctx, ["##", ".#"], x + 16, y - hop + 4, 2, { "#": "#d9904a" });
+  const body = legs ? CAT : [...CAT.slice(0, 6), "#.#...#."];
+  rows(ctx, mirror(body), x, y - hop, 2, { "#": "#d9904a", k: INK });
+  rows(ctx, mirror(["##", ".#"]), x - 4, y - hop + 4, 2, { "#": "#d9904a" });
 }
 
 function drawPlant(ctx: Ctx, L: Layout, height: number, bud: number, wiggle: number) {
@@ -254,6 +257,7 @@ export function GardenVista(props: Props) {
       if (!back || backH !== H) { back = backdrop(H); backH = H; }
       const L = layout(H), t = now / 1000, s = scene.current, still = s.still, since = (now - s.since) / 1000;
       ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, W, H);
       ctx.drawImage(back, 0, 0);
       drawSun(ctx, t, still, L); drawClouds(ctx, t, still, L); drawWindmill(ctx, t, still, L);
       // Sometimes the cat dashes across the far field while things grow.
