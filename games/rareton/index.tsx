@@ -19,6 +19,7 @@ import {
 } from "./gifts";
 import { VILLAGERS } from "./villagers";
 import { createMusic, type Music } from "./music";
+import { GardenVista } from "./vista";
 import { DUCKS, createBirds, paintBird, paintBunting, paintButterflies, paintCat, paintDuck, paintPuddles, paintRain, updateBird } from "./ambient";
 import { VILLAGER_ART } from "./villager-art";
 
@@ -44,13 +45,12 @@ function nightness(phase: number) {
   return 1 - (phase - 0.9) / 0.1;
 }
 const timeOfDay = (phase: number) => phase < 0.3 ? "Morning" : phase < 0.55 ? "Afternoon" : phase < 0.65 ? "Evening" : phase < 0.9 ? "Night" : "Dawn";
-const wait = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms));
 const MOVE_KEYS = new Set(["w", "a", "s", "d", "arrowup", "arrowleft", "arrowdown", "arrowright"]);
 
 type Target = { id: string; x: number; y: number; reach: number; label: string; lift: number; hit?: Box };
 type Menu =
   | { kind: "post" | "mailbox" | "satchel" | "settings" | "board" | "stall" }
-  | { kind: "garden"; bloom?: GardenFlower }
+  | { kind: "garden" }
   | { kind: "bakery"; gave: boolean }
   | { kind: "well"; note?: string }
   | { kind: "chat"; npc: number; line: number; note?: string; night?: boolean }
@@ -315,16 +315,21 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
     }
   }
 
-  const plant = () => act(async () => {
-    const version = epoch.current;
-    const seed = pendingPlay ?? (await client.play(1n))[0];
-    if (!live.current.reducedMotion) await wait(1200);
-    const settled = await client.settle(seed.id);
-    if (version !== epoch.current || settled.outcomeId === null) return;
-    const bloom = GARDEN_IDS[settled.outcomeId - 1];
-    play(bloom === "moonflower" ? "reveal-legendary" : bloom === "goldensun" || bloom === "orchid" ? "reveal-rare" : "reveal-common");
-    setMenu({ kind: "garden", bloom });
-  });
+  /** Plant one packet (the runtime confirms it); returns the play to settle, or null if it didn't happen. */
+  async function sow() {
+    const out = { id: null as bigint | null };
+    await act(async () => { out.id = (pendingPlay ?? (await client.play(1n))[0]).id; });
+    return out.id;
+  }
+  /** Settle a planted packet. The SDK decides the flower; the vista chooses when to show it. */
+  async function harvest(id: bigint) {
+    const out = { bloom: null as GardenFlower | null };
+    await act(async () => {
+      const settled = await client.settle(id);
+      if (settled.outcomeId !== null) out.bloom = GARDEN_IDS[settled.outcomeId - 1];
+    });
+    return out.bloom;
+  }
 
   function interact(target: Target) {
     if (paused || live.current.menu) return;
@@ -677,7 +682,7 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
   const title = !menu ? "" : menu.kind === "post" ? "Rareton Post Office" : menu.kind === "bakery" ? "Bramble's Bakery"
     : menu.kind === "well" ? "The wishing well" : menu.kind === "board" ? "Village notice board" : menu.kind === "mailbox" ? "Your mailbox"
     : menu.kind === "chat" ? VILLAGERS[menu.npc].name : menu.kind === "satchel" ? "Your satchel"
-    : menu.kind === "stall" ? "The seed stall" : menu.kind === "garden" ? (menu.bloom ? "Something bloomed!" : "Community garden") : "Settings";
+    : menu.kind === "stall" ? "The seed stall" : menu.kind === "garden" ? "Community garden" : "Settings";
   const feedback = <p className="rt-hint" role={actionError ? "alert" : "status"}>{actionError || (busy ? "Waiting for the preview confirmation…" : "")}</p>;
   const close = () => setMenu(null);
 
@@ -715,7 +720,11 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
       <p>{status}</p>
       {failed && <button type="button" disabled={paused} onClick={() => setRevision(value => value + 1)}>Try again</button>}
     </div>}
-    {menu && <GameMenu title={title} onClose={close}>
+    {menu?.kind === "garden" && me && <GardenVista me={me} helper={villagerArt[2]} definition={definition}
+      packets={snapshot?.consumables ?? 0n} balance={balance} canBuy={canBuy} pendingPlay={pendingPlay} busy={busy} paused={paused}
+      reducedMotion={reducedMotion} error={actionError} sow={sow} harvest={harvest} sound={play} onClose={close}
+      buy={() => void act(async () => { await client.buy(1n); play("purchase"); })} />}
+    {menu && menu.kind !== "garden" && <GameMenu title={title} onClose={close}>
       {menu.kind === "post" ? <>{isNight && <p className="rt-note">Postmaster Quill is sorting letters by lamplight. “Night post is the best post.”</p>}<PostOffice friendId={friendId} inventory={bag} paused={paused || busy} balance={balance} definition={definition} onDone={close}
         onSend={(gift, spend) => {
           const entries = Object.entries(spend) as [FlowerId | "bun", number][];
@@ -751,24 +760,6 @@ export default function Rareton({ friendId, client, paused }: GameComponentProps
           </div>) : <p className="rt-hint">You have no garden flowers to sell. Meadow flowers are free and have no RF value.</p>}
         {feedback}
       </>
-      : menu.kind === "garden" ? (menu.bloom ? <div className="rt-chat">
-        <PixelArt rows={flowerIcon(menu.bloom)} scale={9} color={FLOWERS[menu.bloom].color} label={FLOWERS[menu.bloom].name} />
-        <div>
-          <p className="rt-quote">A <strong>{FLOWERS[menu.bloom].name.toLowerCase()}</strong> bloomed! <span className="rt-sim">Simulated</span></p>
-          <p className="rt-note">{chanceOf(definition, menu.bloom)}% chance · worth {rf(valueOf(definition, menu.bloom))}. Keep it for a bouquet (its value travels with the gift) or sell it at the seed stall.</p>
-          <div className="rt-row">
-            <button type="button" disabled={busy || paused || !snapshot?.consumables} onClick={() => { setMenu({ kind: "garden" }); void plant(); }}>Plant another{snapshot?.consumables ? ` (${snapshot.consumables})` : ""}</button>
-            <button type="button" className="rt-primary" disabled={busy || paused} onClick={close}>Lovely!</button>
-          </div>
-        </div>
-      </div> : <>
-        <p>{busy ? "You press the seed into the soil… something is sprouting." : pendingPlay ? "A seed is already in the ground. Let's see what it becomes."
-          : snapshot?.consumables ? `You have ${snapshot.consumables} seed packet${snapshot.consumables === 1n ? "" : "s"}. Each grows one garden flower.`
-          : "No seed packets yet. The seed stall is right next to the garden."}</p>
-        <button type="button" className="rt-primary" disabled={busy || paused || (!pendingPlay && !snapshot?.consumables)} onClick={() => void plant()}>
-          {pendingPlay ? "Finish growing" : "Plant a seed packet"}</button>
-        {feedback}
-      </>)
       : menu.kind === "chat" ? <div className="rt-chat">
         {villagerArt[menu.npc] && <PixelArt rows={spriteFrame(villagerArt[menu.npc], "down", false, 0).frame.rows} scale={5} halo label={VILLAGERS[menu.npc].name} />}
         <div>

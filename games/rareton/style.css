@@ -92,3 +92,27 @@
 .rt-sell{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #d8c9a6}
 .rt-sell span{flex:1}
 .rt-item small{font-size:10px;color:#5b5346}
+/* Garden vista: full-frame planting scene. */
+.rt-vista{position:absolute;inset:0;z-index:40;overflow:hidden;background:#9dcbf5;animation:rt-fade-in .6s ease both}
+.rt-vista.rt-vista-leaving{animation:rt-fade-out .45s ease both}
+.rt-vista.rt-vista-still,.rt-vista.rt-vista-still.rt-vista-leaving{animation:none}
+@keyframes rt-fade-in{from{opacity:0}to{opacity:1}}
+@keyframes rt-fade-out{from{opacity:1}to{opacity:0}}
+.rt-vista canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated}
+.rt-vista-top{position:absolute;top:14px;left:14px;right:14px;display:flex;align-items:flex-start;gap:8px}
+.rt-vista-controls{position:absolute;left:50%;bottom:66px;transform:translateX(-50%);width:min(760px,calc(100% - 28px));display:grid;justify-items:center;gap:8px;text-align:center}
+.rt-vista-status{margin:0;padding:6px 12px;background:#f7efd9e6;border:2px solid var(--ink);border-radius:6px;font-size:13px}
+.rt-vista-status:empty{display:none}
+.rt-vista-controls .rt-row{justify-content:center}
+.rt-game.rt-game.rt-game .rt-bloom{font-size:20px;font-weight:700;padding:12px 30px;min-height:52px;background:#f28fb0;color:var(--ink);border-width:3px;animation:rt-pulse 1s ease-in-out infinite}
+.rt-vista-still .rt-bloom{animation:none!important}
+@keyframes rt-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.rt-vista-card{background:var(--paper);border:2px solid var(--ink);border-radius:8px;padding:10px 16px;box-shadow:0 4px 0 var(--ink);width:100%}
+.rt-vista-card h2{margin:0 0 4px;font-size:18px}
+@media (max-width:620px){
+  .rt-vista-top{top:8px;left:8px;right:8px}
+  .rt-vista-controls{bottom:50px}
+  .rt-vista-status{font-size:11px}
+  .rt-game.rt-game.rt-game .rt-bloom{font-size:16px;padding:10px 22px;min-height:44px}
+}
+@media (prefers-reduced-motion:reduce){.rt-vista,.rt-vista-leaving{animation:none}.rt-game.rt-game.rt-game .rt-bloom{animation:none}}

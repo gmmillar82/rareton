@@ -28,8 +28,13 @@ follows the system setting). Input pauses whenever the runtime pauses the game o
 - **The wishing well** gives you a daisy the first time you make a wish.
 - **Villagers** (Bramble, Postmaster Quill, Sparkle, Old Moss) chat. Old Moss gives
   you a poppy and Sparkle leaves a bouquet in your mailbox.
-- **Seed stall and community garden** (south end of the meadow): buy a seed packet,
-  plant it in the garden plot and it blooms into one garden-only flower (odds below).
+- **Seed stall and community garden** (south end of the meadow): buy a seed packet and
+  open the garden plot. The screen fades into a bright garden vista: fields stretching to
+  the mountains, a windmill village, and your Friend and Sparkle in straw hats. Plant a
+  packet and they water it, a bud grows (and sometimes the cat dashes past), then press
+  **Bloom!** to open it. The flower is decided by the SDK's chance-game result when you
+  plant; pressing Bloom only chooses when it's revealed. It opens on its own after 20
+  seconds, and instantly with reduced motion. Each packet blooms into one garden-only flower (odds below).
   Keep garden flowers for bouquets or sell them back at the stall. The plot shows the
   garden flowers you're holding.
 - **Post office**: choose a bouquet (1–3 flowers), a letter (6 messages) or a honey

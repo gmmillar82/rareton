@@ -53,8 +53,11 @@ await testGame("./games/rareton", {
     await canvas.focus();
     await hold(page, "s", 200); await hold(page, "a", 900);
     await page.keyboard.press("e");
+    await game.getByRole("dialog", { name: "Community garden" }).waitFor();
+    await page.screenshot({ path: `./artifacts/vista-${width}.png` });
     await game.getByRole("button", { name: "Plant a seed packet" }).click();
     await page.getByRole("button", { name: "Confirm preview" }).click();
+    await game.getByRole("button", { name: /Bloom!/ }).click({ timeout: 15_000 });
     await game.getByRole("heading", { name: "Something bloomed!" }).waitFor({ timeout: 15_000 });
     await page.screenshot({ path: `./artifacts/bloom-${width}.png` });
     await game.getByRole("button", { name: "Lovely!" }).click();
